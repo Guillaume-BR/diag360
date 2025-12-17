@@ -2,10 +2,21 @@ import sys
 import pandas as pd
 import duckdb
 import os
+from pathlib import Path
+
 
 # Ajouter le dossier parent de src (le projet) au path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from utils.functions import *
+
+base_dir = Path(__file__).resolve().parent.parent  # racine du projet diag360
+data_dir = base_dir / "data" / "data_asso"
+
+raw_dir = data_dir / "raw"
+processed_dir = data_dir / "processed"
+
+raw_dir.mkdir(parents=True, exist_ok=True)
+processed_dir.mkdir(parents=True, exist_ok=True)
 
 def create_full(path_folder):
     """
@@ -48,8 +59,8 @@ def create_dataframe_communes():
     com_url = (
         "https://www.data.gouv.fr/api/1/datasets/r/f5df602b-3800-44d7-b2df-fa40a0350325"
     )
-    download_file(com_url, extract_to=extract_path, filename="communes_france_2025.csv")
-    df_com = pd.read_csv(os.path.join(extract_path, "communes_france_2025.csv"))
+    download_file(com_url, extract_to=raw_dir, filename="communes_france_2025.csv")
+    df_com = pd.read_csv(os.path.join(raw_dir, "communes_france_2025.csv"))
     df_com = df_com[["code_insee", "code_postal", "codes_postaux", "epci_code"]]
     df_com = float_to_codepostal(df_com, "code_postal")
     return df_com
@@ -58,9 +69,9 @@ def create_dataframe_epci():
     epci_url = (
         "https://www.data.gouv.fr/api/1/datasets/r/6e05c448-62cc-4470-aa0f-4f31adea0bc4"
     )
-    download_file(epci_url, extract_to=extract_path, filename="data_epci.csv")
+    download_file(epci_url, extract_to=raw_dir, filename="data_epci.csv")
     df_epci = duckdb.read_csv(
-        os.path.join(extract_path, "data_epci.csv"), ignore_errors=True, sep=";"
+        os.path.join(raw_dir, "data_epci.csv"), ignore_errors=True, sep=";"
     )
     return df_epci
 
@@ -68,20 +79,14 @@ def create_dataframe_epci():
 def main():
     # Define URLs and file paths
     zip_url = "https://www.data.gouv.fr/api/1/datasets/r/c2334d19-c752-413f-b64b-38006d9d0513"  # Replace with actual URL
-    extract_path = "../data/data_asso/raw"
     filename_asso = "data_asso.zip"
     # csv_file_path = os.path.join(extract_path, 'data.csv')
 
-    if not os.path.exists("../data/data_asso/processed/"):
-        os.makedirs("../data/data_asso/processed/")
-        print("Création du dossier")
-
     # Download and extract the zip file
-    download_file(zip_url, extract_to=extract_path, filename=filename_asso)
-    extract_zip(os.path.join(extract_path, filename_asso), extract_to=extract_path)
-
+    download_file(zip_url, extract_to=raw_dir, filename=filename_asso)
+    extract_zip(os.path.join(raw_dir, filename_asso), extract_to=raw_dir)
     # Create full dataframe from extracted CSV files
-    df = create_full(path_folder=extract_path)
+    df = create_full(path_folder=raw_dir)
 
     # Homogenize NaN values
     df_asso_cleaned = homogene_nan(df).reset_index(drop=True)
@@ -144,9 +149,11 @@ def main():
         """
 
     df_asso_summary = duckdb.query(q)
-    df_asso_summary.write_csv("../data/data_asso/processed/asso_per_epci.csv")
-    print("Fihcier sauvegardé : ../data/data_asso/processed/asso_per_epci.csv")
 
+    #Sauvegarde du fichier final
+    output_file = processed_dir / "asso_per_epci.csv"
+    df_asso_summary.write_csv(str(output_file))
+    print(f"Fichier sauvegardé : {output_file}")
 
 if __name__ == "__main__":
     main()  # asso.py

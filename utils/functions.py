@@ -27,7 +27,7 @@ def download_file(url: str, extract_to: str = '.', filename: str = None) -> None
     """
 
     if not os.path.exists(extract_to):
-        os.makedirs(extract_to)
+        os.makedirs(extract_to, exist_ok=True)
         print(f"Dossier créé : {extract_to}")
 
     filename = os.path.join(extract_to, filename)
