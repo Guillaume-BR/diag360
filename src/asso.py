@@ -1,0 +1,118 @@
+import sys
+import pandas as pd
+import duckdb
+import os
+
+# Ajouter le dossier parent de src (le projet) au path
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from utils.functions import *
+
+
+def homogene_nan(df):
+    cols = ["adrs_codeinsee", "adrs_codepostal"]
+    invalid_values = ["nan", "<NA>", "NaN", "Nan", "0", "0.0", "", "INSEE", "commune"]
+    for col in cols:
+        df[col] = df[col].astype(str).str.strip()
+        df[col] = df[col].replace(invalid_values, pd.NA)
+        df = float_to_codepostal(df, col)
+    return df
+
+
+def main():
+    # Define URLs and file paths
+    zip_url = "https://www.data.gouv.fr/api/1/datasets/r/c2334d19-c752-413f-b64b-38006d9d0513"  # Replace with actual URL
+    extract_path = "../data/data_asso/raw"
+    filename_asso = "data_asso.zip"
+    # csv_file_path = os.path.join(extract_path, 'data.csv')
+
+    if not os.path.exists("../data/data_asso/processed/"):
+        os.makedirs("../data/data_asso/processed/")
+        print("Création du dossier")
+
+    # Download and extract the zip file
+    download_file(zip_url, extract_to=extract_path, filename=filename_asso)
+    extract_zip(os.path.join(extract_path, filename_asso), extract_to=extract_path)
+
+    # Create full dataframe from extracted CSV files
+    df = create_full(path_folder=extract_path)
+
+    # Homogenize NaN values
+    df_asso_cleaned = homogene_nan(df).reset_index(drop=True)
+
+    # Correction des nan
+    df_nan = df_asso_cleaned.loc[
+        df_asso_cleaned[["adrs_codeinsee", "adrs_codepostal"]].isna().any(axis=1)
+    ]
+    df_sans_nan = df_asso_cleaned.dropna().reset_index(drop=True)
+    # df_nan_insee = df_nan.loc[df_nan["adrs_codeinsee"].isna()]
+    df_nan_postal = df_nan.loc[df_nan["adrs_codepostal"].isna()]
+
+    # Création de la table duckdb pour les jointures
+    com_url = (
+        "https://www.data.gouv.fr/api/1/datasets/r/f5df602b-3800-44d7-b2df-fa40a0350325"
+    )
+    download_file(com_url, extract_to=extract_path, filename="communes_france_2025.csv")
+    df_com = pd.read_csv(os.path.join(extract_path, "communes_france_2025.csv"))
+    df_com = df_com[["code_insee", "code_postal", "codes_postaux", "epci_code"]]
+    df_com = float_to_codepostal(df_com, "code_postal")
+
+    # Récupération des codes postaux manquants via jointure avec df_com
+    query = """ 
+        SELECT DISTINCT e1.adrs_codeinsee, e2.code_insee, e2.code_postal
+        FROM df_nan_postal e1
+        LEFT JOIN df_com e2
+        ON (e1.adrs_codeinsee = e2.code_insee)
+        ORDER BY e1.adrs_codeinsee
+        """
+    df_sans_nan_postal = duckdb.sql(query).df().dropna()
+    df_sans_nan_postal = df_sans_nan_postal[["adrs_codeinsee", "code_postal"]]
+    df_sans_nan_postal.rename(columns={"code_postal": "adrs_codepostal"}, inplace=True)
+
+    # Combinaison des deux dataframes pour obtenir le dataframe complet
+    df_asso_complete = (
+        pd.concat(
+            [df_sans_nan[["adrs_codeinsee", "adrs_codepostal"]], df_sans_nan_postal],
+            ignore_index=True,
+            axis=0,
+        )
+        .sort_values(["adrs_codeinsee", "adrs_codepostal"])
+        .dropna()
+        .reset_index(drop=True)
+    )
+
+    # Téléchargement des données EPCI pour jointure
+    epci_url = (
+        "https://www.data.gouv.fr/api/1/datasets/r/6e05c448-62cc-4470-aa0f-4f31adea0bc4"
+    )
+    download_file(epci_url, extract_to=extract_path, filename="data_epci.csv")
+    df_epci = duckdb.read_csv(
+        os.path.join(extract_path, "data_epci.csv"), ignore_errors=True, sep=";"
+    )
+
+    query = """
+        SELECT 
+            e2.dept,
+            e2.siren, 
+            REPLACE(e2.total_pop_mun, ' ', '') AS population,
+            count(*) AS nb_asso
+        FROM df_asso_complete e1
+        LEFT JOIN df_epci e2
+        ON e1.adrs_codeinsee = e2.insee
+        GROUP BY e2.dept,e2.siren,e2.total_pop_mun
+        ORDER BY dept, siren
+        """
+
+    df_asso_epci = duckdb.sql(query).df().dropna()
+    q = """ 
+        SELECT *, round(1.0*TRY_CAST(nb_asso AS DOUBLE) / TRY_CAST(population AS DOUBLE) * 1000,2) as asso_per_1000_habitants
+        FROM df_asso_epci
+        ORDER BY dept,siren
+        """
+
+    df_asso_summary = duckdb.query(q)
+    df_asso_summary.write_csv("../data/data_asso/processed/asso_per_epci.csv")
+    print("Fihcier sauvegardé : ../data/data_asso/processed/asso_per_epci.csv")
+
+
+if __name__ == "__main__":
+    main()  # asso.py
