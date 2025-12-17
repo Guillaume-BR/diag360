@@ -30,27 +30,6 @@ def main():
     download_file(com_url, extract_to=extract_path, filename="communes_france_2025.csv")
     df_com = duckdb.read_csv(os.path.join(extract_path, "communes_france_2025.csv"))
 
-
-    # Téléchargement des données EPCI pour jointure
-    #epci_url = (
-    #    "https://www.data.gouv.fr/api/1/datasets/r/6e05c448-62cc-4470-aa0f-4f31adea0bc4"
-    #)
-    #download_file(epci_url, extract_to=extract_path, filename="data_epci.csv")
-    #df_epci = duckdb.read_csv(
-    #    os.path.join(extract_path, "data_epci.csv"), ignore_errors=True, sep=";"
-    #)
-#
-    #query_epci = """
-    #SELECT 
-    #    DISTINCT siren,
-    #    dept
-    #FROM df_epci
-    #WHERE total_pop_tot IS NOT NULL
-    #ORDER BY siren
-    #"""
-#
-    #df_epci_filtered = duckdb.sql(query_epci)
-
     #Surface de chaque epci
     query = """
     SELECT 
@@ -62,17 +41,6 @@ def main():
     """
 
     df_surface_epci = duckdb.sql(query)
-
-    #query = """
-    #SELECT 
-    #    df_epci_filtered.*,
-    #    df_surface_epci.superficie_km2
-    #FROM df_epci_filtered
-    #LEFT JOIN df_surface_epci
-    #ON df_epci_filtered.siren = df_surface_epci.epci_code
-    #"""
-#
-    #df_epci_filtered = duckdb.sql(query)
 
     query = """
     SELECT e.siren,

@@ -130,38 +130,11 @@ def float_to_codepostal(df: pd.DataFrame, col: str) -> pd.DataFrame:
     )
     return df
 
-def create_full(path_folder):
-    """
-    Lit tous les fichiers CSV d'un dossier, filtre certaines colonnes,
-    concatène les résultats et supprime chaque fichier après lecture.
-
-    Parameters
-    ----------
-    path_folder : str
-        Chemin vers le dossier contenant les fichiers CSV.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame complet avec les colonnes 'adrs_codeinsee' et 'adrs_codepostal'
-        pour les lignes où 'position' == 'A'.
-    """
-    df_full = pd.DataFrame()
-    
-    for file_name in os.listdir(path_folder):
-        if file_name.endswith(".csv") and file_name.startswith("rna_waldec"):
-            file_path = os.path.join(path_folder, file_name)
-            
-            # Lire le CSV
-            df_temp = pd.read_csv(file_path, sep=';')
-            print(f"Fichier lu : {file_path} avec {len(df_temp)} lignes.")
-            df_temp = df_temp.loc[df_temp["position"] == "A"]
-            df_temp = df_temp[["adrs_codeinsee", "adrs_codepostal"]]
-            
-            # Concaténer dans le DataFrame complet
-            df_full = pd.concat([df_full, df_temp], ignore_index=True, axis=0)
-            
-            # Supprimer le fichier après lecture
-            os.remove(file_path)
-    
-    return df_full   
+def homogene_nan(df):
+    cols = ["adrs_codeinsee", "adrs_codepostal"]
+    invalid_values = ["nan", "<NA>", "NaN", "Nan", "0", "0.0", "", "INSEE", "commune"]
+    for col in cols:
+        df[col] = df[col].astype(str).str.strip()
+        df[col] = df[col].replace(invalid_values, pd.NA)
+        df = float_to_codepostal(df, col)
+    return df 

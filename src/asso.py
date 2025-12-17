@@ -7,15 +7,62 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from utils.functions import *
 
+def create_full(path_folder):
+    """
+    Lit tous les fichiers CSV d'un dossier, filtre certaines colonnes,
+    concatène les résultats et supprime chaque fichier après lecture.
 
-def homogene_nan(df):
-    cols = ["adrs_codeinsee", "adrs_codepostal"]
-    invalid_values = ["nan", "<NA>", "NaN", "Nan", "0", "0.0", "", "INSEE", "commune"]
-    for col in cols:
-        df[col] = df[col].astype(str).str.strip()
-        df[col] = df[col].replace(invalid_values, pd.NA)
-        df = float_to_codepostal(df, col)
-    return df
+    Parameters
+    ----------
+    path_folder : str
+        Chemin vers le dossier contenant les fichiers CSV.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame complet avec les colonnes 'adrs_codeinsee' et 'adrs_codepostal'
+        pour les lignes où 'position' == 'A'.
+    """
+    df_full = pd.DataFrame()
+    
+    for file_name in os.listdir(path_folder):
+        if file_name.endswith(".csv") and file_name.startswith("rna_waldec"):
+            file_path = os.path.join(path_folder, file_name)
+            
+            # Lire le CSV
+            df_temp = pd.read_csv(file_path, sep=';')
+            print(f"Fichier lu : {file_path} avec {len(df_temp)} lignes.")
+            df_temp = df_temp.loc[df_temp["position"] == "A"] #filtre les association en activité
+            df_temp = df_temp[["adrs_codeinsee", "adrs_codepostal"]]
+            
+            # Concaténer dans le DataFrame complet
+            df_full = pd.concat([df_full, df_temp], ignore_index=True, axis=0)
+
+            # Supprimer le fichier après lecture
+            os.remove(file_path)
+    
+    print(f"Dataframe complet créé.")
+    return df_full 
+
+def create_dataframe_communes():
+    com_url = (
+        "https://www.data.gouv.fr/api/1/datasets/r/f5df602b-3800-44d7-b2df-fa40a0350325"
+    )
+    download_file(com_url, extract_to=extract_path, filename="communes_france_2025.csv")
+    df_com = pd.read_csv(os.path.join(extract_path, "communes_france_2025.csv"))
+    df_com = df_com[["code_insee", "code_postal", "codes_postaux", "epci_code"]]
+    df_com = float_to_codepostal(df_com, "code_postal")
+    return df_com
+
+def create_dataframe_epci():
+    epci_url = (
+        "https://www.data.gouv.fr/api/1/datasets/r/6e05c448-62cc-4470-aa0f-4f31adea0bc4"
+    )
+    download_file(epci_url, extract_to=extract_path, filename="data_epci.csv")
+    df_epci = duckdb.read_csv(
+        os.path.join(extract_path, "data_epci.csv"), ignore_errors=True, sep=";"
+    )
+    return df_epci
 
 
 def main():
@@ -44,17 +91,10 @@ def main():
         df_asso_cleaned[["adrs_codeinsee", "adrs_codepostal"]].isna().any(axis=1)
     ]
     df_sans_nan = df_asso_cleaned.dropna().reset_index(drop=True)
-    # df_nan_insee = df_nan.loc[df_nan["adrs_codeinsee"].isna()]
     df_nan_postal = df_nan.loc[df_nan["adrs_codepostal"].isna()]
 
     # Création de la table duckdb pour les jointures
-    com_url = (
-        "https://www.data.gouv.fr/api/1/datasets/r/f5df602b-3800-44d7-b2df-fa40a0350325"
-    )
-    download_file(com_url, extract_to=extract_path, filename="communes_france_2025.csv")
-    df_com = pd.read_csv(os.path.join(extract_path, "communes_france_2025.csv"))
-    df_com = df_com[["code_insee", "code_postal", "codes_postaux", "epci_code"]]
-    df_com = float_to_codepostal(df_com, "code_postal")
+    df_com = create_dataframe_communes()
 
     # Récupération des codes postaux manquants via jointure avec df_com
     query = """ 
@@ -80,14 +120,8 @@ def main():
         .reset_index(drop=True)
     )
 
-    # Téléchargement des données EPCI pour jointure
-    epci_url = (
-        "https://www.data.gouv.fr/api/1/datasets/r/6e05c448-62cc-4470-aa0f-4f31adea0bc4"
-    )
-    download_file(epci_url, extract_to=extract_path, filename="data_epci.csv")
-    df_epci = duckdb.read_csv(
-        os.path.join(extract_path, "data_epci.csv"), ignore_errors=True, sep=";"
-    )
+    # Création de la table duckdb pour les jointures avec les epci
+    df_epci = create_dataframe_epci()
 
     query = """
         SELECT 
