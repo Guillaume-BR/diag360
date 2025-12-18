@@ -55,16 +55,6 @@ def create_full(path_folder):
     print(f"Dataframe complet créé.")
     return df_full 
 
-def create_dataframe_communes():
-    com_url = (
-        "https://www.data.gouv.fr/api/1/datasets/r/f5df602b-3800-44d7-b2df-fa40a0350325"
-    )
-    download_file(com_url, extract_to=raw_dir, filename="communes_france_2025.csv")
-    df_com = pd.read_csv(os.path.join(raw_dir, "communes_france_2025.csv"))
-    df_com = df_com[["code_insee", "code_postal", "codes_postaux", "epci_code"]]
-    df_com = float_to_codepostal(df_com, "code_postal")
-    return df_com
-
 def create_dataframe_epci():
     epci_url = (
         "https://www.data.gouv.fr/api/1/datasets/r/6e05c448-62cc-4470-aa0f-4f31adea0bc4"
@@ -80,7 +70,6 @@ def main():
     # Define URLs and file paths
     zip_url = "https://www.data.gouv.fr/api/1/datasets/r/c2334d19-c752-413f-b64b-38006d9d0513"  # Replace with actual URL
     filename_asso = "data_asso.zip"
-    # csv_file_path = os.path.join(extract_path, 'data.csv')
 
     # Download and extract the zip file
     download_file(zip_url, extract_to=raw_dir, filename=filename_asso)
@@ -99,7 +88,8 @@ def main():
     df_nan_postal = df_nan.loc[df_nan["adrs_codepostal"].isna()]
 
     # Création de la table duckdb pour les jointures
-    df_com = create_dataframe_communes()
+    df_com = create_dataframe_communes(raw_dir)
+    df_com = df_com[["code_insee", "code_postal", "codes_postaux", "epci_code"]]
 
     # Récupération des codes postaux manquants via jointure avec df_com
     query = """ 
@@ -142,13 +132,13 @@ def main():
         """
 
     df_asso_epci = duckdb.sql(query).df().dropna()
-    q = """ 
+    query = """ 
         SELECT *, round(1.0*TRY_CAST(nb_asso AS DOUBLE) / TRY_CAST(population AS DOUBLE) * 1000,2) as asso_per_1000_habitants
         FROM df_asso_epci
         ORDER BY dept,siren
         """
 
-    df_asso_summary = duckdb.query(q)
+    df_asso_summary = duckdb(query)
 
     #Sauvegarde du fichier final
     output_file = processed_dir / "asso_per_epci.csv"

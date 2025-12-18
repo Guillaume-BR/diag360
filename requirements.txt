@@ -4,3 +4,4 @@ duckdb
 os
 sys
 zipfile
+pathlib

@@ -2,7 +2,7 @@ import requests
 import zipfile
 import os
 import pandas as pd
-
+from pathlib import Path
 
 def download_file(url: str, extract_to: str = '.', filename: str = None) -> None : 
     """
@@ -138,3 +138,12 @@ def homogene_nan(df):
         df[col] = df[col].replace(invalid_values, pd.NA)
         df = float_to_codepostal(df, col)
     return df 
+
+def create_dataframe_communes(dir_path):
+    com_url = (
+        "https://www.data.gouv.fr/api/1/datasets/r/f5df602b-3800-44d7-b2df-fa40a0350325"
+    )
+    download_file(com_url, extract_to=dir_path, filename="communes_france_2025.csv")
+    df_com = pd.read_csv(dir_path / "communes_france_2025.csv")
+    df_com = float_to_codepostal(df_com, "code_postal")
+    return df_com
