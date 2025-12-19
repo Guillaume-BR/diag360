@@ -17,34 +17,35 @@ processed_dir = data_dir / "processed"
 raw_dir.mkdir(parents=True, exist_ok=True)
 processed_dir.mkdir(parents=True, exist_ok=True)
 
+
 def main():
-    #chargement des données
-    df_dist_urg = duckdb.read_csv(raw_dir / "dist_urgence.csv",skiprows=2)
-    df_dist_pharma = duckdb.read_csv(raw_dir / "dist_pharma.csv",skiprows=2)
-    
-    #Création du dataframe des communes (cf functions.py)
+    # chargement des données
+    df_dist_urg = duckdb.read_csv(raw_dir / "dist_urgence.csv", skiprows=2)
+    df_dist_pharma = duckdb.read_csv(raw_dir / "dist_pharma.csv", skiprows=2)
+
+    # Création du dataframe des communes (cf functions.py)
     df_com = create_dataframe_communes(raw_dir)
 
-    #Changement des noms de colonnes
+    # Changement des noms de colonnes
     mapping_urg = {
-    "Code": "code_insee",
-    "Libellé": "nom_commune",
-    "Distance à la structure la plus proche 2024": "dist_urgence_min"
+        "Code": "code_insee",
+        "Libellé": "nom_commune",
+        "Distance à la structure la plus proche 2024": "dist_urgence_min",
     }
 
     df_dist_urg = df_dist_urg.df().rename(columns=mapping_urg)
     print(df_dist_urg.head())
 
     mapping_pharma = {
-    "Code": "code_insee",
-    "Libellé": "nom_commune",
-    "Distance à la pharmacie la plus proche 2024": "dist_pharma_min"
+        "Code": "code_insee",
+        "Libellé": "nom_commune",
+        "Distance à la pharmacie la plus proche 2024": "dist_pharma_min",
     }
 
     df_dist_pharma = df_dist_pharma.df().rename(columns=mapping_pharma)
     print(df_dist_pharma.head())
 
-    #Jointure des données distance moyenne aux urgences
+    # Jointure des données distance moyenne aux urgences
     query = """
     SELECT 
         DISTINCT epci_code as siren,
@@ -57,8 +58,8 @@ def main():
 
     df_dist_urg_moy = duckdb.sql(query)
 
-    #Jointure des données distance moyenne aux pharmacies
-    query ="""
+    # Jointure des données distance moyenne aux pharmacies
+    query = """
     SELECT
         DISTINCT epci_code as siren,
         ROUND(AVG(TRY_CAST(dist_pharma_min AS DOUBLE)),2) AS dist_pharma_moyenne_km
@@ -70,7 +71,7 @@ def main():
 
     df_dist_pharma_moy = duckdb.sql(query)
 
-    #Jointure des deux dataframes
+    # Jointure des deux dataframes
     query = """ 
     SELECT
         d.siren,
@@ -83,16 +84,11 @@ def main():
 
     df_dist_soin_final = duckdb.sql(query)
 
-    #Sauvegarde du fichier final
+    # Sauvegarde du fichier final
     output_file = processed_dir / "dist_soin_per_epci.csv"
     df_dist_soin_final.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
 
+
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
