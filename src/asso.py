@@ -55,17 +55,6 @@ def create_full(path_folder):
     print(f"Dataframe complet créé.")
     return df_full 
 
-def create_dataframe_epci():
-    epci_url = (
-        "https://www.data.gouv.fr/api/1/datasets/r/6e05c448-62cc-4470-aa0f-4f31adea0bc4"
-    )
-    download_file(epci_url, extract_to=raw_dir, filename="data_epci.csv")
-    df_epci = duckdb.read_csv(
-        os.path.join(raw_dir, "data_epci.csv"), ignore_errors=True, sep=";"
-    )
-    return df_epci
-
-
 def main():
     # Define URLs and file paths
     zip_url = "https://www.data.gouv.fr/api/1/datasets/r/c2334d19-c752-413f-b64b-38006d9d0513"  # Replace with actual URL

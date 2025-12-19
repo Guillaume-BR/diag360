@@ -19,9 +19,11 @@ processed_dir.mkdir(parents=True, exist_ok=True)
 
 def main():
     # Define URLs and file paths
-    path_cat_nat =  "./data/raw/cat_nat.csv"
+    path_cat_nat =  base_dir / "data" / "raw" / "cat_nat.csv"
     df_cat_nat = pd.read_csv(path_cat_nat,skiprows=2,sep=';')
-    print(df_cat_nat.head())
+
+    # Création de la table duckdb pour les jointures
+    df_com = create_dataframe_communes(raw_dir)
 
     #Mise en forme des données
     mapping = {
@@ -32,14 +34,6 @@ def main():
     df_cat_nat = df_cat_nat.rename(columns=mapping)
     df_cat_nat.loc[df_cat_nat['siren'] == 75056, 'siren'] = 200054781   
     print("Données cat_nat chargées et renommées.")
-
-    # Création de la table duckdb pour les jointures
-    com_url = (
-        "https://www.data.gouv.fr/api/1/datasets/r/f5df602b-3800-44d7-b2df-fa40a0350325"
-    )
-    extract_path = "./data/data_cat_nat/raw"
-    download_file(com_url, extract_to=extract_path, filename="communes_france_2025.csv")
-    df_com = duckdb.read_csv(os.path.join(extract_path, "communes_france_2025.csv"))
 
     #Surface de chaque epci
     query = """

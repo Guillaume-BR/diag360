@@ -2,6 +2,7 @@ import requests
 import zipfile
 import os
 import pandas as pd
+import duckdb
 from pathlib import Path
 
 def download_file(url: str, extract_to: str = '.', filename: str = None) -> None : 
@@ -147,3 +148,11 @@ def create_dataframe_communes(dir_path):
     df_com = pd.read_csv(dir_path / "communes_france_2025.csv")
     df_com = float_to_codepostal(df_com, "code_postal")
     return df_com
+
+def create_dataframe_epci(extract_dir):
+    epci_url = (
+        "https://www.data.gouv.fr/api/1/datasets/r/6e05c448-62cc-4470-aa0f-4f31adea0bc4"
+    )
+    download_file(epci_url, extract_to=extract_dir, filename="data_epci.csv")
+    df_epci = duckdb.read_csv( str(extract_dir / "data_epci.csv"), ignore_errors=True, sep=";")
+    return df_epci
