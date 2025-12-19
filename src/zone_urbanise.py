@@ -72,7 +72,7 @@ def main():
     )
     print(f"df_zones_urb.shape: {df_zones_urb.shape}")
 
-    #Regroupement par EPCI dans df_epci
+    # Regroupement par EPCI dans df_epci
     query = """ 
     SELECT DISTINCT siren
     FROM df_epci
@@ -128,7 +128,9 @@ def main():
     """
 
     df_amenagements_par_communes = duckdb.sql(query)
-    print(f"df_amenagements_par_communes.shape: {df_amenagements_par_communes.df().shape}")
+    print(
+        f"df_amenagements_par_communes.shape: {df_amenagements_par_communes.df().shape}"
+    )
 
     # aménagements cyclables par EPCI
     query = """ 

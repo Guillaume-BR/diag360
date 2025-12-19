@@ -18,6 +18,7 @@ processed_dir = data_dir / "processed"
 raw_dir.mkdir(parents=True, exist_ok=True)
 processed_dir.mkdir(parents=True, exist_ok=True)
 
+
 def create_full(path_folder):
     """
     Lit tous les fichiers CSV d'un dossier, filtre certaines colonnes,
@@ -35,25 +36,28 @@ def create_full(path_folder):
         pour les lignes où 'position' == 'A'.
     """
     df_full = pd.DataFrame()
-    
+
     for file_name in os.listdir(path_folder):
         if file_name.endswith(".csv") and file_name.startswith("rna_waldec"):
             file_path = os.path.join(path_folder, file_name)
-            
+
             # Lire le CSV
-            df_temp = pd.read_csv(file_path, sep=';')
+            df_temp = pd.read_csv(file_path, sep=";")
             print(f"Fichier lu : {file_path} avec {len(df_temp)} lignes.")
-            df_temp = df_temp.loc[df_temp["position"] == "A"] #filtre les association en activité
+            df_temp = df_temp.loc[
+                df_temp["position"] == "A"
+            ]  # filtre les association en activité
             df_temp = df_temp[["adrs_codeinsee", "adrs_codepostal"]]
-            
+
             # Concaténer dans le DataFrame complet
             df_full = pd.concat([df_full, df_temp], ignore_index=True, axis=0)
 
             # Supprimer le fichier après lecture
             os.remove(file_path)
-    
+
     print(f"Dataframe complet créé.")
-    return df_full 
+    return df_full
+
 
 def main():
     # Define URLs and file paths
@@ -63,6 +67,7 @@ def main():
     # Download and extract the zip file
     download_file(zip_url, extract_to=raw_dir, filename=filename_asso)
     extract_zip(os.path.join(raw_dir, filename_asso), extract_to=raw_dir)
+    
     # Create full dataframe from extracted CSV files
     df = create_full(path_folder=raw_dir)
 
@@ -78,7 +83,6 @@ def main():
 
     # Création de la table duckdb pour les jointures
     df_com = create_dataframe_communes(raw_dir)
-    df_com = df_com[["code_insee", "code_postal", "codes_postaux", "epci_code"]]
 
     # Récupération des codes postaux manquants via jointure avec df_com
     query = """ 
@@ -129,10 +133,11 @@ def main():
 
     df_asso_summary = duckdb(query)
 
-    #Sauvegarde du fichier final
+    # Sauvegarde du fichier final
     output_file = processed_dir / "asso_per_epci.csv"
     df_asso_summary.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
+
 
 if __name__ == "__main__":
     main()  # asso.py

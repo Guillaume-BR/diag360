@@ -17,52 +17,70 @@ processed_dir = data_dir / "processed"
 raw_dir.mkdir(parents=True, exist_ok=True)
 processed_dir.mkdir(parents=True, exist_ok=True)
 
+
 def main():
     # Define URLs and file paths
-    path_cat_nat =  base_dir / "data" / "raw" / "cat_nat.csv"
-    df_cat_nat = pd.read_csv(path_cat_nat,skiprows=2,sep=';')
+    URL = (
+        "https://www.data.gouv.fr/api/1/datasets/r/d6fb9e18-b66b-499c-8284-46a3595579cc"
+    )
+    download_file(URL, extract_to=raw_dir, filename="gaspar.zip")
+    extract_zip(raw_dir / "gaspar.zip", extract_to=raw_dir)
+    for file in os.listdir(raw_dir):
+        if not file.startswith("catnat"):
+            os.remove(raw_dir / file)
+    path_cat_nat = raw_dir / "catnat_gaspar.csv"
+    df_cat_nat = pd.read_csv(path_cat_nat, sep=";", low_memory=False)
+    print(df_cat_nat.head())
 
     # Création de la table duckdb pour les jointures
     df_com = create_dataframe_communes(raw_dir)
 
-    #Mise en forme des données
-    mapping = {
-    "Code": "siren",
-    "Libellé": "nom_epci",
-    "Nombre d'Arrêtés de Catastrophes Naturelles publiés au J.O.": "nb_cat_nat"
-    }
-    df_cat_nat = df_cat_nat.rename(columns=mapping)
-    df_cat_nat.loc[df_cat_nat['siren'] == 75056, 'siren'] = 200054781   
-    print("Données cat_nat chargées et renommées.")
+    # Mise en forme des données
+    # mapping = {
+    # "Code": "siren",
+    # "Libellé": "nom_epci",
+    # "Nombre d'Arrêtés de Catastrophes Naturelles publiés au J.O.": "nb_cat_nat"
+    # }
+    # df_cat_nat = df_cat_nat.rename(columns=mapping)
+    # df_cat_nat.loc[df_cat_nat['siren'] == 75056, 'siren'] = 200054781
+    # print("Données cat_nat chargées et renommées.")
 
-    #Surface de chaque epci
     query = """
-    SELECT 
-        epci_code as siren,
-        sum(superficie_km2) AS superficie_km2
-    FROM df_com
-    WHERE (superficie_km2 IS NOT NULL) AND (epci_code != 'ZZZZZZZZZ')
-    GROUP BY epci_code
+    SELECT cod_commune AS code_insee, count(*) AS nb_cat_nat
+    FROM df_cat_nat
+    GROUP BY cod_commune
     """
 
-    df_surface_epci = duckdb.sql(query)
+    df_cat_nat_communes = duckdb.sql(query)
 
+    # Surface de chaque epci et nb de cat nat par epci sur 40 ans
     query = """
-    SELECT e.siren,
-        df_cat_nat.nb_cat_nat,
-        ROUND(1.0*df_cat_nat.nb_cat_nat / e.superficie_km2, 3) AS cat_nat_per_km2
-    FROM df_surface_epci AS e
-    LEFT JOIN df_cat_nat
-    ON e.siren = df_cat_nat.siren
+    WITH df_temp AS (
+    SELECT 
+        df_com.epci_code AS siren,
+        df_cat_nat_communes.nb_cat_nat,
+        df_com.superficie_km2
+    FROM df_com
+    LEFT JOIN df_cat_nat_communes
+    ON df_com.code_insee = df_cat_nat_communes.code_insee
+    )
+
+    SELECT 
+        siren,
+        SUM(nb_cat_nat) AS nb_cat_nat_total,
+        SUM(superficie_km2) AS superficie_epci_km2,
+        ROUND(nb_cat_nat_total / superficie_epci_km2, 3) AS cat_nat_per_km2
+    FROM df_temp
+    GROUP BY siren
     """
 
     df_cat_nat_final = duckdb.sql(query)
 
-    #Sauvegarde du fichier final
+    # Sauvegarde du fichier final
     output_file = processed_dir / "cat_nat_per_epci.csv"
     df_cat_nat_final.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
 
-if __name__ == "__main__":
-    main()  # asso.py  
 
+if __name__ == "__main__":
+    main()  # asso.py

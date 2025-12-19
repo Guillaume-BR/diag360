@@ -17,6 +17,7 @@ processed_dir = data_dir / "processed"
 raw_dir.mkdir(parents=True, exist_ok=True)
 processed_dir.mkdir(parents=True, exist_ok=True)
 
+
 def main():
     url = (
         "https://www.data.gouv.fr/api/1/datasets/r/398edc71-0d51-4cb6-9cbe-2540a4db573c"
@@ -24,9 +25,12 @@ def main():
 
     mediation_file = raw_dir / "mediation_numerique.csv"
 
-    # Télécharger et extraire les données
+    # Télécharger et extraire les données médiation
     download_file(url, extract_to=raw_dir, filename="mediation_numerique.csv")
     df_mediation_num = pd.read_csv(mediation_file, low_memory=False)
+
+    # Télecharger les données communes
+    df_com = create_dataframe_communes(raw_dir)
 
     # Regroupement par code_insee communes
     query = """ 
@@ -38,18 +42,6 @@ def main():
     """
 
     df_mediation_num_grouped = duckdb.sql(query)
-    print(df_mediation_num_grouped.df().head())
-
-    # Téléchargement des données communes
-    com_url = (
-        "https://www.data.gouv.fr/api/1/datasets/r/f5df602b-3800-44d7-b2df-fa40a0350325"
-    )
-
-    communes_file = raw_dir / "communes_france_2025.csv"
-
-    download_file(com_url, extract_to=raw_dir, filename="communes_france_2025.csv")
-    df_com = pd.read_csv(communes_file, low_memory=False)
-
 
     # Jointure des données
     query = """ 
@@ -77,12 +69,12 @@ def main():
     """
 
     df_mediation_num_final = duckdb.sql(query)
-    print(df_mediation_num_final.df().head())
 
     # Sauvegarde du fichier final
     output_file = processed_dir / "mediation_numerique.csv"
     df_mediation_num_final.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
+
 
 if __name__ == "__main__":
     main()  # mediation_numerique.py
