@@ -71,10 +71,11 @@ def main():
         .astype(float)
     )
     print(f"df_zones_urb.shape: {df_zones_urb.shape}")
+    print(df_zones_urb.head())
 
     # Regroupement par EPCI dans df_epci
     query = """ 
-    SELECT DISTINCT siren
+    SELECT DISTINCT siren, raison_sociale AS nom_epci, dept
     FROM df_epci
     """
     df_epci = duckdb.sql(query)
@@ -96,6 +97,8 @@ def main():
     query = """
     SELECT
         epci.siren,
+        epci.nom_epci,
+        epci.dept,
         sepci.superficie_km2,
         zu.superficie_artificialisee,
         zu.part_percent_superficie_artificialisee
@@ -153,6 +156,7 @@ def main():
     FROM df_amenagements_par_epci ape
     LEFT JOIN df_zone_urbanise_merged zu
     ON ape.epci_code = zu.siren
+    ORDER BY zu.dept, zu.siren
     """
 
     df_zone_urbanise_final = duckdb.sql(query)

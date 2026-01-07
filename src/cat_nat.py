@@ -30,10 +30,12 @@ def main():
             os.remove(raw_dir / file)
     path_cat_nat = raw_dir / "catnat_gaspar.csv"
     df_cat_nat = pd.read_csv(path_cat_nat, sep=";", low_memory=False)
-    print(df_cat_nat.head())
 
     # Création de la table duckdb pour les jointures
     df_com = create_dataframe_communes(raw_dir)
+
+    #Création de la table duckdb des epci
+    df_epci = create_dataframe_epci(raw_dir)
 
     # Mise en forme des données
     # mapping = {
@@ -45,6 +47,17 @@ def main():
     # df_cat_nat.loc[df_cat_nat['siren'] == 75056, 'siren'] = 200054781
     # print("Données cat_nat chargées et renommées.")
 
+    #création de la table du code epci et du nom associé
+    query = """
+    SELECT DISTINCT
+        siren,
+        raison_sociale AS nom_epci,
+        dept
+    FROM df_epci
+    """
+    df_epci = duckdb.sql(query)
+    print(f"df_epci.shape: {df_epci.df().shape}")
+
     query = """
     SELECT cod_commune AS code_insee, count(*) AS nb_cat_nat
     FROM df_cat_nat
@@ -52,6 +65,7 @@ def main():
     """
 
     df_cat_nat_communes = duckdb.sql(query)
+    print(f"df_cat_nat_communes.shape: {df_cat_nat_communes.df().shape}")
 
     # Surface de chaque epci et nb de cat nat par epci sur 40 ans
     query = """
@@ -63,6 +77,7 @@ def main():
     FROM df_com
     LEFT JOIN df_cat_nat_communes
     ON df_com.code_insee = df_cat_nat_communes.code_insee
+    WHERE (superficie_km2 IS NOT NULL) AND (epci_code != 'ZZZZZZZZZ')
     )
 
     SELECT 
@@ -74,7 +89,26 @@ def main():
     GROUP BY siren
     """
 
+    df_cat_nat_temp = duckdb.sql(query)
+    print(f"df_cat_nat_temp.shape: {df_cat_nat_temp.df().shape}")
+
+    # Ajout du nom des epci
+    query = """
+    SELECT 
+        df_epci.siren,
+        df_epci.nom_epci,
+        df_epci.dept,
+        df_cat_nat_temp.nb_cat_nat_total,
+        df_cat_nat_temp.superficie_epci_km2,
+        df_cat_nat_temp.cat_nat_per_km2
+    FROM df_cat_nat_temp
+    LEFT JOIN df_epci
+    ON df_cat_nat_temp.siren = df_epci.siren
+    ORDER BY df_epci.dept, df_epci.siren
+    """
+
     df_cat_nat_final = duckdb.sql(query)
+    print(f"df_cat_nat_final.shape: {df_cat_nat_final.df().shape}")
 
     # Sauvegarde du fichier final
     output_file = processed_dir / "cat_nat_per_epci.csv"

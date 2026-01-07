@@ -26,6 +26,20 @@ def main():
     # Création du dataframe des communes (cf functions.py)
     df_com = create_dataframe_communes(raw_dir)
 
+    #Création de la table duckdb des epci
+    df_epci = create_dataframe_epci(raw_dir)
+
+    #création de la table du code epci et du nom associé
+    query = """
+    SELECT DISTINCT
+        siren,
+        raison_sociale AS nom_epci,
+        dept
+    FROM df_epci
+    """
+    df_epci = duckdb.sql(query)
+    print(f"df_epci.shape: {df_epci.df().shape}")
+
     # Changement des noms de colonnes
     mapping_urg = {
         "Code": "code_insee",
@@ -34,7 +48,6 @@ def main():
     }
 
     df_dist_urg = df_dist_urg.df().rename(columns=mapping_urg)
-    print(df_dist_urg.head())
 
     mapping_pharma = {
         "Code": "code_insee",
@@ -53,10 +66,12 @@ def main():
     FROM df_com
     LEFT JOIN df_dist_urg
     ON df_com.code_insee = df_dist_urg.code_insee
+    WHERE epci_code != 'ZZZZZZZZZ'
     GROUP BY epci_code
     """
 
     df_dist_urg_moy = duckdb.sql(query)
+    print(f"taille df_dist_urg_moy: {df_dist_urg_moy.df().shape}")
 
     # Jointure des données distance moyenne aux pharmacies
     query = """
@@ -70,19 +85,26 @@ def main():
     """
 
     df_dist_pharma_moy = duckdb.sql(query)
+    print(f"taille df_dist_pharma_moy: {df_dist_pharma_moy.df().shape}")
 
-    # Jointure des deux dataframes
+    # Jointure des deux dataframes et du dataframe des epci
     query = """ 
     SELECT
         d.siren,
+        e.nom_epci,
+        e.dept,
         d.dist_urgence_moyenne_km,
         p.dist_pharma_moyenne_km
     FROM df_dist_urg_moy d
     LEFT JOIN df_dist_pharma_moy p
     ON d.siren = p.siren
+    LEFT JOIN df_epci e
+    ON d.siren = e.siren
+    ORDER BY e.dept, d.siren
     """
 
     df_dist_soin_final = duckdb.sql(query)
+    print(f"taille df_dist_soin_final: {df_dist_soin_final.df().shape}")
 
     # Sauvegarde du fichier final
     output_file = processed_dir / "dist_soin_per_epci.csv"

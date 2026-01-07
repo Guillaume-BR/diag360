@@ -43,6 +43,7 @@ def main():
         df_phyto.annee,
         df_epci.dept,
         df_epci.siren,
+        df_epci.raison_sociale AS nom_epci,
         TRY_CAST(df_phyto.quantite_substance AS DOUBLE) AS quantite_substance
     FROM df_epci 
     INNER JOIN df_phyto 
@@ -70,8 +71,9 @@ def main():
     query = """
     SELECT 
         e1.annee,
-        e1.dept,
         e1.siren,
+        e1.nom_epci,
+        e1.dept,
         e1.total_quantite_substance,
         e2.valeur,
         e1.total_quantite_substance / NULLIF(e2.valeur,0) AS quantite_par_ha_sau

@@ -33,18 +33,15 @@ def main():
     df_nb_covoit = duckdb.read_csv(raw_dir / filename_nb_trajets_covoit, sep=",")
 
     # Téléchargement des données epci pour jointure
-    epci_url = (
-        "https://www.data.gouv.fr/api/1/datasets/r/6e05c448-62cc-4470-aa0f-4f31adea0bc4"
-    )
-    download_file(epci_url, extract_to=raw_dir, filename="data_epci.csv")
-
-    df_epci = duckdb.read_csv(raw_dir / "data_epci.csv", sep=";", ignore_errors=True)
+    df_epci = create_dataframe_epci(raw_dir)
 
     # On sélectionne uniquement les colonnes utiles
     df_epci_filtered = duckdb.sql(
         """ 
     SELECT 
         DISTINCT siren,
+        raison_sociale AS nom_epci,
+        dept,
         TRY_CAST(REPLACE(total_pop_tot,' ','') AS DOUBLE) AS total_pop_tot
     FROM df_epci
     """
@@ -63,6 +60,8 @@ def main():
     
     SELECT 
         e1.siren,
+        e1.nom_epci,
+        e1.dept,
         ROUND(e2.nb_aires_covoiturage / e1.total_pop_tot * 10000,3) AS aires_covoit_pour_10k_hab
     FROM df_epci_filtered e1
     LEFT JOIN df_nb_lieu_covoit_filtered e2
@@ -87,11 +86,14 @@ def main():
     query = """ 
     SELECT
         e1.siren,
+        e1.nom_epci,
+        e1.dept,
         e1.aires_covoit_pour_10k_hab,
         e2.nb_trajets_pour_10k_hab
     FROM df_nb_lieu_covoit_relative e1
     LEFT JOIN df_nb_trajets_relative e2
     ON e1.siren = e2.siren
+    ORDER BY e1.dept, e1.siren
     """
 
     df_covoit_final = duckdb.sql(query)
