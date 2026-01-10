@@ -32,6 +32,19 @@ def main():
     # Télecharger les données communes
     df_com = create_dataframe_communes(raw_dir)
 
+    #Création de df_epci
+    df_epci = create_dataframe_epci(raw_dir)
+
+    #On ne garde que les colonnes siren, nom_epci et dept
+    query = """
+    SELECT DISTINCT
+        siren,
+        raison_sociale AS nom_epci,
+        dept
+    FROM df_epci
+    """
+    df_epci = duckdb.sql(query)
+
     # Regroupement par code_insee communes
     query = """ 
     SELECT 
@@ -40,9 +53,8 @@ def main():
     FROM df_mediation_num
     GROUP BY code_insee
     """
-
     df_mediation_num_grouped = duckdb.sql(query)
-
+    
     # Jointure des données
     query = """ 
     SELECT
@@ -61,11 +73,15 @@ def main():
     # dataframe final avec le nombre de médiation numérique pour 10000 habitants
     query = """ 
     SELECT 
-        siren,
-        nb_mediation_epci,
-        round(10000 * nb_mediation_epci / population_epci, 2) AS mediation_per_10k_habs 
-    FROM df_epci_mediation
-    ORDER BY siren
+        e2.siren,
+        e2.nom_epci,
+        e2.dept,
+        e1.nb_mediation_epci,
+        round(10000 * e1.nb_mediation_epci / e1.population_epci, 2) AS mediation_per_10k_habs 
+    FROM df_epci_mediation AS e1
+    LEFT JOIN df_epci AS e2
+    ON e1.siren = e2.siren
+    ORDER BY e2.dept,e2.siren
     """
 
     df_mediation_num_final = duckdb.sql(query)

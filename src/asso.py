@@ -86,7 +86,10 @@ def main():
 
     # Récupération des codes postaux manquants via jointure avec df_com
     query = """ 
-        SELECT DISTINCT e1.adrs_codeinsee, e2.code_insee, e2.code_postal
+        SELECT 
+            DISTINCT e1.adrs_codeinsee, 
+            e2.code_insee, 
+            e2.code_postal
         FROM df_nan_postal e1
         LEFT JOIN df_com e2
         ON (e1.adrs_codeinsee = e2.code_insee)
@@ -109,33 +112,36 @@ def main():
     )
 
     # Création de la table duckdb pour les jointures avec les epci
-    df_epci = create_dataframe_epci()
+    df_epci = create_dataframe_epci(raw_dir)
 
     query = """
         SELECT 
             e2.dept,
-            e2.siren, 
+            e2.siren,
+            e2.raison_sociale AS nom_epci, 
             REPLACE(e2.total_pop_mun, ' ', '') AS population,
             count(*) AS nb_asso
         FROM df_asso_complete e1
         LEFT JOIN df_epci e2
         ON e1.adrs_codeinsee = e2.insee
-        GROUP BY e2.dept,e2.siren,e2.total_pop_mun
+        GROUP BY e2.dept,e2.siren,e2.total_pop_mun, e2.raison_sociale
         ORDER BY dept, siren
         """
 
     df_asso_epci = duckdb.sql(query).df().dropna()
+    print(f"df_asso_epci.shape: {df_asso_epci.shape}")
+    
     query = """ 
         SELECT *, round(1.0*TRY_CAST(nb_asso AS DOUBLE) / TRY_CAST(population AS DOUBLE) * 1000,2) as asso_per_1000_habitants
         FROM df_asso_epci
         ORDER BY dept,siren
         """
 
-    df_asso_summary = duckdb(query)
+    df_asso_final = duckdb.sql(query)
 
     # Sauvegarde du fichier final
     output_file = processed_dir / "asso_per_epci.csv"
-    df_asso_summary.write_csv(str(output_file))
+    df_asso_final.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
 
 

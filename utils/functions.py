@@ -5,6 +5,8 @@ import pandas as pd
 import duckdb
 from pathlib import Path
 
+from scipy.fftpack import dst
+
 def download_file(url: str, extract_to: str = '.', filename: str = None) -> None : 
     """
     Télécharge un fichier depuis une URL et l'enregistre localement.
@@ -154,5 +156,14 @@ def create_dataframe_epci(extract_dir):
         "https://www.data.gouv.fr/api/1/datasets/r/6e05c448-62cc-4470-aa0f-4f31adea0bc4"
     )
     download_file(epci_url, extract_to=extract_dir, filename="data_epci.csv")
-    df_epci = duckdb.read_csv( str(extract_dir / "data_epci.csv"), ignore_errors=True, sep=";")
+    src = extract_dir / "data_epci.csv"
+    dst = extract_dir / "data_epci_utf8.csv"
+
+    with open(src, "r", encoding="latin1") as f:
+        content = f.read()
+
+    with open(dst, "w", encoding="utf-8") as f:
+        f.write(content)
+    
+    df_epci = duckdb.read_csv( str(dst), header=True,sep=";")
     return df_epci
