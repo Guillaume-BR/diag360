@@ -5,8 +5,6 @@ import pandas as pd
 import duckdb
 from pathlib import Path
 
-from scipy.fftpack import dst
-
 def download_file(url: str, extract_to: str = '.', filename: str = None) -> None : 
     """
     Télécharge un fichier depuis une URL et l'enregistre localement.
@@ -22,11 +20,6 @@ def download_file(url: str, extract_to: str = '.', filename: str = None) -> None
         Répertoire de destination du fichier (par défaut : répertoire courant).
     filename : str
         Nom du fichier local (avec extension).
-
-    Raises
-    ------
-    requests.exceptions.RequestException
-        En cas d'erreur réseau lors du téléchargement.
     """
 
     if not os.path.exists(extract_to):

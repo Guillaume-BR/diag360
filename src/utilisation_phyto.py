@@ -52,6 +52,7 @@ def main():
     """
 
     df_phyto_merged = duckdb.sql(query)
+    print(f"df_phyto_merged.shape: {df_phyto_merged.df().shape}")
 
     # Quantité totale de substance par département, par année et par EPCI
     query = """ 
@@ -66,6 +67,9 @@ def main():
     """
 
     df_phyto_epci_year = duckdb.sql(query)
+    print(f"df_phyto_epci_year.shape: {df_phyto_epci_year.df().shape}")
+    print(df_phyto_epci_year.head())
+    df_phyto_epci_year.to_csv(processed_dir / "phyto_epci_year.csv", index=False)
 
     #jointure des données phyto avec la surface agricole utile
     query = """
