@@ -3,7 +3,6 @@ import pandas as pd
 import duckdb
 import os
 from pathlib import Path
-import requests
 import re
 
 
@@ -20,19 +19,20 @@ processed_dir = data_dir / "processed"
 raw_dir.mkdir(parents=True, exist_ok=True)
 processed_dir.mkdir(parents=True, exist_ok=True)
 
+
 def main():
     # dataframe des communes
     df_com = create_dataframe_communes(raw_dir)
 
-    #dataframe des médias non indépendants
+    # dataframe des médias non indépendants
     url_media_non_independants = "https://raw.githubusercontent.com/mdiplo/Medias_francais/refs/heads/master/medias.tsv"
-    df_non_independants = pd.read_csv(url_media_non_independants, sep = "\t")
-    
+    df_non_independants = pd.read_csv(url_media_non_independants, sep="\t")
+
     # dataframe des medias locaux
     file_path = raw_dir / "medias_locaux.txt"
 
     def extraire_donnees_media(chemin_fichier):
-        with open(chemin_fichier, 'r', encoding='utf-8') as f:
+        with open(chemin_fichier, "r", encoding="utf-8") as f:
             contenu = f.read()
 
         # 1. On récupère d'abord tout le texte entre les balises <a>...</a>
@@ -47,7 +47,7 @@ def main():
             # (.*) -> Nom du média
             # \s -> espace
             # \(([^)]+)\)$ -> Contenu de la dernière parenthèse à la fin de la chaîne
-            match = re.search(r'(.*)\s\(([^)]+)\)$', item)
+            match = re.search(r"(.*)\s\(([^)]+)\)$", item)
 
             if match:
                 nom_media = match.group(1).strip()
@@ -58,7 +58,7 @@ def main():
                 data.append([item, "Inconnue"])
 
         # 3. Création du DataFrame
-        df = pd.DataFrame(data, columns=['Nom_media', 'Ville'])
+        df = pd.DataFrame(data, columns=["Nom_media", "Ville"])
         return df
 
     # Exécution
@@ -66,18 +66,18 @@ def main():
         df_medias = extraire_donnees_media(str(file_path))
         print("Extraction réussie :")
         print(df_medias.head())
-        
+
     except Exception as e:
         print(f"Erreur lors de la lecture du fichier : {e}")
 
     print(f"Nombre de lignes dans df_medias : {df_medias.shape[0]}")
     # On remplace les manquants par les noms de villes
-    #différence des villes entre df_médias et df_result_final
-    #set_villes_medias = set(df_medias["Ville"].unique())
-    #set_villes_result = set(df_temp["nom_standard"].unique())
-    #set_villes_diff = set_villes_medias - set_villes_result
-    #set_villes_diff
-    
+    # différence des villes entre df_médias et df_result_final
+    # set_villes_medias = set(df_medias["Ville"].unique())
+    # set_villes_result = set(df_temp["nom_standard"].unique())
+    # set_villes_diff = set_villes_medias - set_villes_result
+    # set_villes_diff
+
     ville_mapping = {
         "Bourg Les Valence": "Bourg-lès-Valence",
         "Charleville-Mézieres": "Charleville-Mézières",
@@ -87,7 +87,7 @@ def main():
         "Cierp Gaud": "Cierp-Gaud",
         "Digne les Bains": "Digne-les-Bains",
         "Echouboulains": "Échouboulains",
-        'Inconnue': "Château-Chinon (Ville)",
+        "Inconnue": "Château-Chinon (Ville)",
         "SAINT-AIGNAN DE GRAND LIEU": "Saint-Aignan-Grandlieu",
         "Saint-Quentin-en-Yvelines": "Montigny-le-Bretonneux",
         "Sanary": "Sanary-sur-Mer",
@@ -98,7 +98,7 @@ def main():
 
     df_medias["Ville"] = df_medias["Ville"].replace(ville_mapping)
 
-    #premiere jointure avec les communes
+    # premiere jointure avec les communes
     query = """
     SELECT 
         code_insee,
@@ -116,7 +116,7 @@ def main():
     df_result = duckdb.query(query).to_df()
     print(df_result.shape)
 
-    #on supprime les doublons
+    # on supprime les doublons
     # Configuration des règles de filtrage
     # Format : "Ville": département_autorisé  OU  "Ville": fonction_spécifique
     RULES_CONFIG = {
@@ -142,14 +142,15 @@ def main():
         "Ussel": "19",
         "Verdun": "55",
         "Vernon": "27",
-
         # Cas complexes avec conditions multiples
-        "Blanquefort": lambda r: r["dep_code"] == '33' and r["nom_media"] == "R.I.G",
-
+        "Blanquefort": lambda r: r["dep_code"] == "33" and r["nom_media"] == "R.I.G",
         "Valence": lambda r: (
-            (r["dep_code"] == '82' and r["nom_media"] in ["VFM", "La Dépêche du Midi"]) or
-            (r["dep_code"] == '26' and r["nom_media"] not in ["VFM", "La Dépêche du Midi"])
-        )
+            (r["dep_code"] == "82" and r["nom_media"] in ["VFM", "La Dépêche du Midi"])
+            or (
+                r["dep_code"] == "26"
+                and r["nom_media"] not in ["VFM", "La Dépêche du Midi"]
+            )
+        ),
     }
 
     def filter_logic(row):
@@ -170,12 +171,12 @@ def main():
 
     # Application du filtre en une seule ligne
     df_temp = df_result[df_result.apply(filter_logic, axis=1)].copy()
-    
+
     df_temp.drop_duplicates(inplace=True)
 
     df_temp.to_csv(str(processed_dir / "medias_extraits.csv"), index=False)
 
-    #on retire de df_result_final les médias présents dans df
+    # on retire de df_result_final les médias présents dans df
     df_final = df_temp[~df_temp["nom_media"].isin(df_non_independants["Nom"])]
 
     print(df_final.head())
@@ -189,20 +190,26 @@ def main():
     """
 
     nb_medias_par_dept = duckdb.query(query_by_dept).to_df()
-    nb_medias_par_dept.to_csv(str(processed_dir / "nb_medias_par_dept.csv"), index=False)
+    nb_medias_par_dept.to_csv(
+        str(processed_dir / "nb_medias_par_dept.csv"), index=False
+    )
 
     query_by_epci = """ 
     SELECT
-        dep_code as dept,
-        epci_code as siren,
-        count(nom_media) AS n_medias_par_epci
+        epci_code as id_epci,
+        'i096' AS id_indicator,
+        count(nom_media) AS valeur_brute,
+        '2024' AS annee
     FROM df_final
     GROUP BY dep_code, epci_code
     ORDER BY dep_code, epci_code
     """
 
     nb_medias_par_epci = duckdb.query(query_by_epci).to_df()
-    nb_medias_par_epci.to_csv(str(processed_dir / "nb_medias_par_epci.csv"), index=False)
+    nb_medias_par_epci.to_csv(
+        str(processed_dir / "nb_medias_par_epci.csv"), index=False
+    )
+
 
 if __name__ == "__main__":
     main()

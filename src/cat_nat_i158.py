@@ -34,7 +34,7 @@ def main():
     # Création de la table duckdb pour les jointures
     df_com = create_dataframe_communes(raw_dir)
 
-    #Création de la table duckdb des epci
+    # Création de la table duckdb des epci
     df_epci = create_dataframe_epci(raw_dir)
 
     # Mise en forme des données
@@ -47,7 +47,7 @@ def main():
     # df_cat_nat.loc[df_cat_nat['siren'] == 75056, 'siren'] = 200054781
     # print("Données cat_nat chargées et renommées.")
 
-    #création de la table du code epci et du nom associé
+    # création de la table du code epci et du nom associé
     query = """
     SELECT DISTINCT
         siren,
@@ -93,7 +93,7 @@ def main():
     print(f"df_cat_nat_temp.shape: {df_cat_nat_temp.df().shape}")
 
     # Ajout du nom des epci
-    query = """
+    query_complete = """
     SELECT 
         df_epci.siren,
         df_epci.nom_epci,
@@ -107,13 +107,27 @@ def main():
     ORDER BY df_epci.dept, df_epci.siren
     """
 
-    df_cat_nat_final = duckdb.sql(query)
+    df_cat_nat_final = duckdb.sql(query_complete)
     print(f"df_cat_nat_final.shape: {df_cat_nat_final.df().shape}")
 
     # Sauvegarde du fichier final
-    output_file = processed_dir / "cat_nat_per_epci.csv"
+    output_file = processed_dir / "cat_nat_per_epci_complete.csv"
     df_cat_nat_final.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
+
+    # Pour la BDD
+    query_bdd = """
+        SELECT 
+            siren as id_epci,
+            'i158' AS id_indicator,
+            cat_nat_per_km2 as valeur_brute,
+            '2025' AS annee
+        FROM df_cat_nat_final
+        """
+    df_cat_nat_bdd = duckdb.sql(query_bdd)
+    output_file_bdd = processed_dir / "cat_nat_per_epci.csv"
+    df_cat_nat_bdd.write_csv(str(output_file_bdd))
+    print(f"Fichier BDD sauvegardé : {output_file_bdd}")
 
 
 if __name__ == "__main__":

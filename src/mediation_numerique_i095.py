@@ -32,10 +32,10 @@ def main():
     # Télecharger les données communes
     df_com = create_dataframe_communes(raw_dir)
 
-    #Création de df_epci
+    # Création de df_epci
     df_epci = create_dataframe_epci(raw_dir)
 
-    #On ne garde que les colonnes siren, nom_epci et dept
+    # On ne garde que les colonnes siren, nom_epci et dept
     query = """
     SELECT DISTINCT
         siren,
@@ -54,7 +54,7 @@ def main():
     GROUP BY code_insee
     """
     df_mediation_num_grouped = duckdb.sql(query)
-    
+
     # Jointure des données
     query = """ 
     SELECT
@@ -88,8 +88,24 @@ def main():
 
     # Sauvegarde du fichier final
     output_file = processed_dir / "mediation_numerique.csv"
-    df_mediation_num_final.write_csv(str(output_file))
+    df_mediation_num_final .write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
+
+    query_bdd = """
+    SELECT 
+        siren as id_epci,
+        'i095' AS id_indicator,
+        mediation_per_10k_habs as valeur_brute,
+        '2026' AS annee
+    FROM df_mediation_num_final
+    """
+
+    df_mediation_num_bdd = duckdb.sql(query_bdd)
+
+    #sauvegarde pour la bdd
+    output_file_bdd = processed_dir / "mediation_numerique_bdd.csv"
+    df_mediation_num_bdd.write_csv(str(output_file_bdd))
+    print(f"Fichier sauvegardé pour la bdd : {output_file_bdd}")
 
 
 if __name__ == "__main__":
