@@ -173,7 +173,7 @@ def main():
         amenagements_per_km2
     FROM df_zone_urbanise_final
     """
-    df_zone_urbanise_bdd = duckdb.sql(query_bdd)    
+    df_zone_urbanise_bdd = duckdb.sql(query_bdd)
 
     # Sauvegarde du fichier final pour la BDD
     output_file_bdd = processed_dir / "zone_urbanise_per_epci_bdd.csv"

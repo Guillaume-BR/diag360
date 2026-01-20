@@ -88,7 +88,7 @@ def main():
 
     # Sauvegarde du fichier final
     output_file = processed_dir / "mediation_numerique.csv"
-    df_mediation_num_final .write_csv(str(output_file))
+    df_mediation_num_final.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
 
     query_bdd = """
@@ -102,7 +102,7 @@ def main():
 
     df_mediation_num_bdd = duckdb.sql(query_bdd)
 
-    #sauvegarde pour la bdd
+    # sauvegarde pour la bdd
     output_file_bdd = processed_dir / "mediation_numerique_bdd.csv"
     df_mediation_num_bdd.write_csv(str(output_file_bdd))
     print(f"Fichier sauvegardé pour la bdd : {output_file_bdd}")

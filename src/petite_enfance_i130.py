@@ -33,7 +33,9 @@ def main():
             df_pe_total = pd.concat([df_pe_total, df_pe], ignore_index=True)
 
     df_pe_final = df_pe_total[["numepci", "txcouv_epci"]].copy()
-    df_pe_final = df_pe_final.rename(columns={"numepci": "id_epci", "txcouv_epci": "valeur_brute"})
+    df_pe_final = df_pe_final.rename(
+        columns={"numepci": "id_epci", "txcouv_epci": "valeur_brute"}
+    )
 
     query = """
     SELECT

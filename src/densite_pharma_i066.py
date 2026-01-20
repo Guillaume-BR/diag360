@@ -17,27 +17,34 @@ processed_dir = data_dir / "processed"
 raw_dir.mkdir(parents=True, exist_ok=True)
 processed_dir.mkdir(parents=True, exist_ok=True)
 
-def main():
-    #chargement des données des pharmacies
-    url = "https://www.data.gouv.fr/api/1/datasets/r/2ce43ade-8d2c-4d1d-81da-ca06c82abc68"
-    download_file(url, extract_to=raw_dir, filename="pharmacies.csv")
-    df_pharma = pd.read_csv(raw_dir / "pharmacies.csv", sep=";", dtype=str,skiprows=1,header = None)
 
-    #Chargement de la table epci
+def main():
+    # chargement des données des pharmacies
+    url = (
+        "https://www.data.gouv.fr/api/1/datasets/r/2ce43ade-8d2c-4d1d-81da-ca06c82abc68"
+    )
+    download_file(url, extract_to=raw_dir, filename="pharmacies.csv")
+    df_pharma = pd.read_csv(
+        raw_dir / "pharmacies.csv", sep=";", dtype=str, skiprows=1, header=None
+    )
+
+    # Chargement de la table epci
     df_epci = create_dataframe_epci(raw_dir)
 
-    #Chargement de la table des communes
+    # Chargement de la table des communes
     df_com = create_dataframe_communes(raw_dir)
 
-    #Traitement des données de pharmacies
+    # Traitement des données de pharmacies
     df_pharma = df_pharma.iloc[:, [15, 19]]
     df_pharma.rename(columns={19: "type", 15: "code_insee"}, inplace=True)
-    df_pharma = df_pharma.loc[df_pharma["type"].str.startswith("Phar")].reset_index(drop=True)
+    df_pharma = df_pharma.loc[df_pharma["type"].str.startswith("Phar")].reset_index(
+        drop=True
+    )
 
-    df_pharma['code_postal'] = df_pharma['code_insee'].apply(lambda x: x.split(" ")[0])
+    df_pharma["code_postal"] = df_pharma["code_insee"].apply(lambda x: x.split(" ")[0])
     df_pharma.drop(columns=["code_insee"], inplace=True)
 
-    #Jointure avec les données des communes pour récupérer le nombre de pharma par commune
+    # Jointure avec les données des communes pour récupérer le nombre de pharma par commune
     query = """
     SELECT
         df_com.epci_code AS id_epci,
@@ -53,7 +60,7 @@ def main():
 
     result = duckdb.sql(query)
 
-    #On garde la population totale des epci
+    # On garde la population totale des epci
     query = """ 
     SELECT 
         DISTINCT siren, 
@@ -62,7 +69,7 @@ def main():
     """
     df_epci_pop_tot = duckdb.sql(query)
 
-    #Calcul du nombre de pharmacie pour 10000 habitants
+    # Calcul du nombre de pharmacie pour 10000 habitants
     query_final = """
     SELECT 
         result.id_epci,
@@ -76,10 +83,11 @@ def main():
     """
 
     df_densite_pharma = duckdb.sql(query_final)
-    
-    #Sauvegarde du résultat final
+
+    # Sauvegarde du résultat final
     df_densite_pharma.write_csv(str(processed_dir / "densite_pharma_i066.csv"))
     print("Traitement terminé. Fichier sauvegardé dans le dossier 'processed'.")
+
 
 if __name__ == "__main__":
     main()
