@@ -49,8 +49,7 @@ def main():
 
     # création de la table du code epci et du nom associé
     query = """
-    SELECT DISTINCT
-        siren,
+    SELECT DISTINCT siren,
         raison_sociale AS nom_epci,
         dept
     FROM df_epci

@@ -1,6 +1,9 @@
 #Dossiers
 /data/
 
+#fichier csv
+*.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
