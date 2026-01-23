@@ -1,7 +1,7 @@
 import sys
+import os
 import pandas as pd
 import duckdb
-import os
 from pathlib import Path
 
 # Ajouter le dossier parent de src (le projet) au path
@@ -166,6 +166,19 @@ def main():
     output_file = processed_dir / "zone_urbanise_per_epci.csv"
     df_zone_urbanise_final.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
+
+    query_bdd = """ 
+    SELECT 
+        siren,
+        amenagements_per_km2
+    FROM df_zone_urbanise_final
+    """
+    df_zone_urbanise_bdd = duckdb.sql(query_bdd)
+
+    # Sauvegarde du fichier final pour la BDD
+    output_file_bdd = processed_dir / "zone_urbanise_per_epci_bdd.csv"
+    df_zone_urbanise_bdd.write_csv(str(output_file_bdd))
+    print(f"Fichier sauvegardé pour la BDD : {output_file_bdd}")
 
 
 if __name__ == "__main__":

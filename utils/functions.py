@@ -5,9 +5,8 @@ import pandas as pd
 import duckdb
 from pathlib import Path
 
-from scipy.fftpack import dst
 
-def download_file(url: str, extract_to: str = '.', filename: str = None) -> None : 
+def download_file(url: str, extract_to: str = ".", filename: str = None) -> None:
     """
     Télécharge un fichier depuis une URL et l'enregistre localement.
 
@@ -22,11 +21,6 @@ def download_file(url: str, extract_to: str = '.', filename: str = None) -> None
         Répertoire de destination du fichier (par défaut : répertoire courant).
     filename : str
         Nom du fichier local (avec extension).
-
-    Raises
-    ------
-    requests.exceptions.RequestException
-        En cas d'erreur réseau lors du téléchargement.
     """
 
     if not os.path.exists(extract_to):
@@ -40,11 +34,12 @@ def download_file(url: str, extract_to: str = '.', filename: str = None) -> None
         response.raise_for_status()
         print(f"Téléchargement du fichier : {filename}")
 
-        with open(filename, 'wb') as f:
+        with open(filename, "wb") as f:
             f.write(response.content)
         print(f"Fichier téléchargé avec succès : {filename}")
 
-def extract_zip(zip_filename: str, extract_to: str = '.') -> None:
+
+def extract_zip(zip_filename: str, extract_to: str = ".") -> None:
     """
     Extrait le contenu d'une archive ZIP dans un répertoire cible.
 
@@ -64,9 +59,10 @@ def extract_zip(zip_filename: str, extract_to: str = '.') -> None:
         Si le fichier fourni n'est pas une archive ZIP valide.
     """
 
-    with zipfile.ZipFile(zip_filename, 'r') as z:
+    with zipfile.ZipFile(zip_filename, "r") as z:
         z.extractall(extract_to)
     print(f"Extraction terminée dans le dossier : {extract_to}")
+
 
 def load_csv_to_duckdb(file_path, table_name, con):
     """
@@ -97,6 +93,7 @@ def load_csv_to_duckdb(file_path, table_name, con):
         """
     )
 
+
 def float_to_codepostal(df: pd.DataFrame, col: str) -> pd.DataFrame:
     """
     Convertit une colonne contenant des codes postaux numériques en format chaîne à 5 caractères.
@@ -125,13 +122,9 @@ def float_to_codepostal(df: pd.DataFrame, col: str) -> pd.DataFrame:
       si elles ne sont pas nettoyées en amont.
     """
 
-    df[col] = (
-        df[col]
-        .astype(str)
-        .str.replace(".0", "", regex=False)
-        .str.zfill(5)
-    )
+    df[col] = df[col].astype(str).str.replace(".0", "", regex=False).str.zfill(5)
     return df
+
 
 def homogene_nan(df):
     cols = ["adrs_codeinsee", "adrs_codepostal"]
@@ -140,7 +133,8 @@ def homogene_nan(df):
         df[col] = df[col].astype(str).str.strip()
         df[col] = df[col].replace(invalid_values, pd.NA)
         df = float_to_codepostal(df, col)
-    return df 
+    return df
+
 
 def create_dataframe_communes(dir_path):
     com_url = (
@@ -150,6 +144,7 @@ def create_dataframe_communes(dir_path):
     df_com = pd.read_csv(dir_path + "/" + "communes_france_2025.csv")
     df_com = float_to_codepostal(df_com, "code_postal")
     return df_com
+
 
 def create_dataframe_epci(extract_dir):
     epci_url = (
@@ -164,6 +159,6 @@ def create_dataframe_epci(extract_dir):
 
     with open(dst, "w", encoding="utf-8") as f:
         f.write(content)
-    
-    df_epci = duckdb.read_csv( str(dst), header=True,sep=";")
+
+    df_epci = duckdb.read_csv(str(dst), header=True, sep=";")
     return df_epci

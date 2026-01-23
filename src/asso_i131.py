@@ -67,7 +67,7 @@ def main():
     # Download and extract the zip file
     download_file(zip_url, extract_to=raw_dir, filename=filename_asso)
     extract_zip(os.path.join(raw_dir, filename_asso), extract_to=raw_dir)
-    
+
     # Create full dataframe from extracted CSV files
     df = create_full(path_folder=raw_dir)
 
@@ -120,7 +120,7 @@ def main():
             e2.siren,
             e2.raison_sociale AS nom_epci, 
             REPLACE(e2.total_pop_mun, ' ', '') AS population,
-            count(*) AS nb_asso
+            count(e1.adrs_codeinsee) AS nb_asso
         FROM df_asso_complete e1
         LEFT JOIN df_epci e2
         ON e1.adrs_codeinsee = e2.insee
@@ -130,18 +130,35 @@ def main():
 
     df_asso_epci = duckdb.sql(query).df().dropna()
     print(f"df_asso_epci.shape: {df_asso_epci.shape}")
-    
-    query = """ 
-        SELECT *, round(1.0*TRY_CAST(nb_asso AS DOUBLE) / TRY_CAST(population AS DOUBLE) * 1000,2) as asso_per_1000_habitants
-        FROM df_asso_epci
-        ORDER BY dept,siren
-        """
 
-    df_asso_final = duckdb.sql(query)
+    query_final = """
+    SELECT *, round(1.0*TRY_CAST(nb_asso AS DOUBLE) / TRY_CAST(population AS DOUBLE) * 1000,2) as asso_per_1000_habitants
+        FROM df_asso_epci
+        ORDER BY dept, siren
+    """
+
+    df_asso_final = duckdb.sql(query_final)
 
     # Sauvegarde du fichier final
+    output_file_final = processed_dir / "asso_per_epci_final.csv"
+    df_asso_final.write_csv(str(output_file_final))
+    print(f"Fichier final sauvegardé : {output_file_final}")
+
+    query_bdd = """ 
+        SELECT 
+            siren as id_epci, 
+            'i131' AS id_indicator,
+            round(1.0*TRY_CAST(nb_asso AS DOUBLE) / TRY_CAST(population AS DOUBLE) * 1000,2) as valeur_brute,
+            '2025' AS annee
+        FROM df_asso_epci
+        ORDER BY siren
+        """
+
+    df_asso_bdd = duckdb.sql(query_bdd)
+
+    # Sauvegarde du fichier bdd
     output_file = processed_dir / "asso_per_epci.csv"
-    df_asso_final.write_csv(str(output_file))
+    df_asso_bdd.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
 
 
