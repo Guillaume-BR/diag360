@@ -141,7 +141,7 @@ def create_dataframe_communes(dir_path):
         "https://www.data.gouv.fr/api/1/datasets/r/f5df602b-3800-44d7-b2df-fa40a0350325"
     )
     download_file(com_url, extract_to=dir_path, filename="communes_france_2025.csv")
-    df_com = pd.read_csv(dir_path / "communes_france_2025.csv")
+    df_com = pd.read_csv(dir_path + "/" + "communes_france_2025.csv")
     df_com = float_to_codepostal(df_com, "code_postal")
     return df_com
 
