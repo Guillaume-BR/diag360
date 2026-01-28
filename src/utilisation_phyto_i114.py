@@ -38,65 +38,95 @@ def main():
     download_file(url_phyto, extract_to=raw_dir, filename="achat_commune_phyto.parquet")
     df_phyto = duckdb.read_parquet(str(raw_dir / "achat_commune_phyto.parquet"))
 
-    # Traitement de la table sau
-    df_sau = df_sau[df_sau["date_mesure"].str.startswith("2020")]
+    #Préparation de df_sau : on ne garde que 2020
+    query_sau = """ 
+    SELECT 
+        geocode_epci, 
+        ROUND(TRY_CAST(valeur AS DOUBLE), 2) AS sau_ha
+    FROM df_sau
+    WHERE geocode_epci NOT LIKE 'Z%' AND date_mesure LIKE '2020%'
+    """
+    
+    df_sau = duckdb.sql(query_sau)
+
+    #query filtrer df_epci
+    query =  """
+    SELECT
+        DISTINCT siren,
+        raison_sociale,
+        dept
+    FROM df_epci
+    """
+    df_epci_filtered = duckdb.sql(query)
 
     # Jointure entre df_epci et df_phyto
     query = """
     SELECT 
         df_phyto.annee,
-        df_epci.dept,
         df_epci.siren,
-        df_epci.raison_sociale AS nom_epci,
         TRY_CAST(df_phyto.quantite_substance AS DOUBLE) AS quantite_substance
     FROM df_epci 
     INNER JOIN df_phyto 
     ON df_epci.insee = df_phyto.code_insee
-    ORDER BY dept, annee
     """
 
     df_phyto_merged = duckdb.sql(query)
     print(f"df_phyto_merged.shape: {df_phyto_merged.df().shape}")
 
-    # Quantité totale de substance par département, par année et par EPCI
-    query = """ 
-    SELECT 
-        annee,
-        dept,
-        siren,
-        SUM(quantite_substance) AS total_quantite_substance
-    FROM df_phyto_merged
-    GROUP BY siren, dept, annee
-    ORDER BY dept, annee, siren
+    # Calcul de la moyenne annuelle par EPCI
+    query_avg = """ 
+    WITH df_temp AS (
+        SELECT
+            siren,
+            COUNT(DISTINCT annee) AS n_years,
+            SUM(quantite_substance) AS total_quantite_substance
+        FROM df_phyto_merged
+        GROUP BY siren
+    )
+
+    SELECT
+        siren as id_epci,
+        (1.0*total_quantite_substance / n_years) AS avg_annual_phyto
+    FROM df_temp
     """
 
-    df_phyto_epci_year = duckdb.sql(query)
-    print(f"df_phyto_epci_year.shape: {df_phyto_epci_year.df().shape}")
-    print(df_phyto_epci_year.head())
-    df_phyto_epci_year.to_csv(processed_dir / "phyto_epci_year.csv", index=False)
+    avg_annual_phyto = duckdb.sql(query_avg)
 
-    # jointure des données phyto avec la surface agricole utile
-    query = """
-    SELECT 
-        e1.annee,
-        e1.siren,
-        e1.nom_epci,
-        e1.dept,
-        e1.total_quantite_substance,
-        e2.valeur as sau_ha,
-        e1.total_quantite_substance / NULLIF(e2.valeur,0) AS quantite_par_ha_sau
-    FROM df_phyto_epci_year e1
-    LEFT JOIN df_sau e2
-    ON e1.siren = e2.geocode_epci
-    ORDER BY e1.dept, e1.annee, e1.siren
+    query_bdd = """
+    SELECT
+        aap.siren as id_epci,
+        'i114' AS id_indicator,
+        ROUND((1.0 * aap.avg_annual_phyto / ds.sau_ha), 3) AS valeur_brute,
+        '2023' AS annee
+    FROM avg_annual_phyto AS aap
+    INNER JOIN df_sau AS ds
+        ON aap.siren = ds.geocode_epci
     """
 
-    df_final = duckdb.sql(query)
+    df_final = duckdb.sql(query_bdd)
 
     # Sauvegarde du fichier final
     output_path = processed_dir / "phyto_epci_sau.csv"
     df_final.to_csv(output_path, index=False)
     print(f"Fichier sauvegardé : {output_path}")
+
+    #tableau complet
+    query_complete = """ 
+    SELECT
+        df_epci.dept,
+        df_epci.siren AS id_epci,
+        df_epci.raison_sociale AS nom_epci,
+        df_final.id_indicator,
+        df_final.valeur_brute
+    FROM df_epci
+    LEFT JOIN df_final
+        ON df_epci.siren = df_final.id_epci
+    """
+
+    df_complete = duckdb.sql(query_complete)
+    output_complete_path = processed_dir / "i114_phyto_epci_sau_complete.csv"
+    df_complete.to_csv(output_complete_path, index=False)
+    print(f"Fichier complet sauvegardé : {output_complete_path}")
 
 
 if __name__ == "__main__":

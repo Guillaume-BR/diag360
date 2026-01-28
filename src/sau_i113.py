@@ -50,7 +50,7 @@ def main():
     query = """
     SELECT
         df_sau.geocode_epci AS id_epci,
-        'i114' AS id_indicator,
+        'i113' AS id_indicator,
         ROUND((df_sau.valeur / 100) / df_surface_epci.superficie_km2 * 100,1) AS valeur_brute,
         '2025' AS annee
     FROM df_sau
@@ -63,6 +63,37 @@ def main():
     # Sauvegarde des données
     df_sau_merged.write_csv(str(processed_dir / "part_sau_sur_total.csv"))
     print("Données sauvegardées dans part_sau_sur_total.csv")
+
+    df_epci = create_dataframe_epci(raw_dir)
+
+    # query complete
+    query = """ 
+        SELECT 
+            DISTINCT siren AS id_epci,
+            raison_sociale AS nom_epci,
+            dept
+        FROM df_epci
+    """
+
+    df_epci = duckdb.sql(query)
+
+    # query complete with join
+    query = """
+        SELECT
+            s1.dept,
+            CAST(s1.id_epci AS VARCHAR) AS id_epci,
+            s1.nom_epci,
+            'i113' AS id_indicator,
+            s2.valeur_brute
+        FROM df_epci AS s1
+        LEFT JOIN df_sau_merged AS s2
+            ON CAST(s1.id_epci AS VARCHAR) = CAST(s2.id_epci AS VARCHAR)
+        ORDER BY s1.dept, s1.id_epci
+        """
+    df_complete = duckdb.sql(query)
+    output_path_complete = processed_dir / "i113_part_sau.csv"
+    df_complete.write_csv(str(output_path_complete))
+    print(f"Données complètes sauvegardées dans {output_path_complete}")
 
 
 if __name__ == "__main__":

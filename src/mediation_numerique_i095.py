@@ -37,8 +37,8 @@ def main():
 
     # On ne garde que les colonnes siren, nom_epci et dept
     query = """
-    SELECT DISTINCT
-        siren,
+    SELECT 
+        DISTINCT siren,
         raison_sociale AS nom_epci,
         dept
     FROM df_epci
@@ -73,11 +73,11 @@ def main():
     # dataframe final avec le nombre de médiation numérique pour 10000 habitants
     query = """ 
     SELECT 
-        e2.siren,
-        e2.nom_epci,
         e2.dept,
-        e1.nb_mediation_epci,
-        round(10000 * e1.nb_mediation_epci / e1.population_epci, 2) AS mediation_per_10k_habs 
+        e2.siren as id_epci,
+        e2.nom_epci,
+        'i095' AS id_indicator,
+        round(10000 * e1.nb_mediation_epci / e1.population_epci, 2) AS valeur_brute 
     FROM df_epci_mediation AS e1
     LEFT JOIN df_epci AS e2
     ON e1.siren = e2.siren
@@ -87,15 +87,15 @@ def main():
     df_mediation_num_final = duckdb.sql(query)
 
     # Sauvegarde du fichier final
-    output_file = processed_dir / "mediation_numerique.csv"
+    output_file = processed_dir / "i095_mediation_numerique_per_10k_habs.csv"
     df_mediation_num_final.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
 
     query_bdd = """
     SELECT 
-        siren as id_epci,
-        'i095' AS id_indicator,
-        mediation_per_10k_habs as valeur_brute,
+        id_epci,
+         id_indicator,
+        valeur_brute,
         '2026' AS annee
     FROM df_mediation_num_final
     """

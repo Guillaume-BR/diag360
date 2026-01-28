@@ -51,7 +51,7 @@ def main():
         e1.siren as id_epci,
         'i150' AS id_indicator,
         ROUND((1.0*e2.valeur)/e1.total_pop_tot*10000 ,3) AS valeur_brute,
-        '2025' AS annee
+        '2024' AS annee
     FROM df_epci_filtered e1
     LEFT JOIN df_nb_covoit e2
     ON e2.territoryid = e1.siren
@@ -63,6 +63,25 @@ def main():
     output_file = processed_dir / "nb_covoit_per_epci.csv"
     df_nb_trajets_relative.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
+
+    # query complete
+    query = """ 
+    SELECT
+        e1.dept,
+        e1.siren as id_epci,
+        e1.nom_epci,
+        'i150' AS id_indicator,
+        ROUND((1.0*e2.valeur)/e1.total_pop_tot*10000 ,3) AS valeur_brute
+    FROM df_epci_filtered e1
+    LEFT JOIN df_nb_covoit e2
+    ON e2.territoryid = e1.siren
+    ORDER BY e1.dept, e1.siren
+    """
+
+    df_nb_trajet_complete = duckdb.sql(query)
+    output_file_complete = processed_dir / "i150_nb_covoit.csv"
+    df_nb_trajet_complete.write_csv(str(output_file_complete))
+    print(f"Fichier sauvegardé : {output_file_complete}")
 
 
 if __name__ == "__main__":

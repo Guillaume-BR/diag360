@@ -162,3 +162,42 @@ def create_dataframe_epci(extract_dir):
 
     df_epci = duckdb.read_csv(str(dst), header=True, sep=";")
     return df_epci
+
+def create_full(path_folder):
+    """
+    Lit tous les fichiers CSV d'un dossier, filtre certaines colonnes,
+    concatène les résultats et supprime chaque fichier après lecture.
+
+    Parameters
+    ----------
+    path_folder : str
+        Chemin vers le dossier contenant les fichiers CSV.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame complet avec les colonnes 'adrs_codeinsee' et 'adrs_codepostal'
+        pour les lignes où 'position' == 'A'.
+    """
+    df_full = pd.DataFrame()
+
+    for file_name in os.listdir(path_folder):
+        if file_name.endswith(".csv") and file_name.startswith("rna_waldec"):
+            file_path = os.path.join(path_folder, file_name)
+
+            # Lire le CSV
+            df_temp = pd.read_csv(file_path, sep=";")
+            print(f"Fichier lu : {file_path} avec {len(df_temp)} lignes.")
+            df_temp = df_temp.loc[
+                df_temp["position"] == "A"
+            ]  # filtre les association en activité
+            df_temp = df_temp[["adrs_codeinsee", "adrs_codepostal"]]
+
+            # Concaténer dans le DataFrame complet
+            df_full = pd.concat([df_full, df_temp], ignore_index=True, axis=0)
+
+            # Supprimer le fichier après lecture
+            os.remove(file_path)
+
+    print(f"Dataframe complet créé.")
+    return df_full

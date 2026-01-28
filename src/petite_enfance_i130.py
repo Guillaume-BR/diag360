@@ -52,6 +52,39 @@ def main():
     df_pe_final.write_csv(str(output_path))
     print(f"Données petite enfance sauvegardées dans {output_path}")
 
+    df_epci = create_dataframe_epci(raw_dir)
+
+    #query complete
+    query = """ 
+        SELECT 
+            DISTINCT siren AS id_epci,
+            raison_sociale AS nom_epci,
+            dept
+        FROM df_epci
+        """
+    df_epci = duckdb.sql(query)
+
+    #query complete with join
+    query = """
+        SELECT 
+            s1.dept,
+            CAST(s1.id_epci AS VARCHAR) AS id_epci,
+            s1.nom_epci,
+            'i130' AS id_indicator,
+            s2.valeur_brute
+        FROM df_epci AS s1
+        LEFT JOIN df_pe_final AS s2
+            ON CAST(s1.id_epci AS VARCHAR) = CAST(s2.id_epci AS VARCHAR)
+        ORDER BY s1.dept, s1.id_epci
+        """
+    
+    df_complete = duckdb.sql(query)
+
+    
+    output_path_complete = processed_dir / "i130_txcouv_pe.csv"
+    df_complete.write_csv(str(output_path_complete))
+    print(f"Données petite enfance complètes sauvegardées dans {output_path_complete}")
+
 
 if __name__ == "__main__":
     main()

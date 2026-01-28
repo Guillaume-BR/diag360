@@ -94,12 +94,11 @@ def main():
     # Ajout du nom des epci
     query_complete = """
     SELECT 
-        df_epci.siren,
-        df_epci.nom_epci,
         df_epci.dept,
-        df_cat_nat_temp.nb_cat_nat_total,
-        df_cat_nat_temp.superficie_epci_km2,
-        df_cat_nat_temp.cat_nat_per_km2
+        df_epci.siren as id_epci,
+        df_epci.nom_epci,
+        'i158' AS id_indicator,
+        df_cat_nat_temp.cat_nat_per_km2 as valeur_brute
     FROM df_cat_nat_temp
     LEFT JOIN df_epci
     ON df_cat_nat_temp.siren = df_epci.siren
@@ -110,16 +109,16 @@ def main():
     print(f"df_cat_nat_final.shape: {df_cat_nat_final.df().shape}")
 
     # Sauvegarde du fichier final
-    output_file = processed_dir / "cat_nat_per_epci_complete.csv"
+    output_file = processed_dir / "i_158_cat_nat_per_epci.csv"
     df_cat_nat_final.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
 
     # Pour la BDD
     query_bdd = """
         SELECT 
-            siren as id_epci,
-            'i158' AS id_indicator,
-            cat_nat_per_km2 as valeur_brute,
+            id_epci,
+            id_indicator,
+            valeur_brute,
             '2025' AS annee
         FROM df_cat_nat_final
         """

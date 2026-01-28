@@ -31,13 +31,12 @@ def main():
     # création de la table du code epci et du nom associé
     query = """
     SELECT 
-        DISTINCT siren,
+        DISTINCT siren as id_epci,
         raison_sociale AS nom_epci,
         dept
     FROM df_epci
     """
     df_epci = duckdb.sql(query)
-    print(f"df_epci.shape: {df_epci.df().shape}")
 
     # Changement des noms de colonnes
     mapping_urg = {
@@ -49,30 +48,41 @@ def main():
     df_dist_urg = df_dist_urg.df().rename(columns=mapping_urg)
 
     # Jointure des données distance moyenne aux urgences
-    query = """
-    SELECT 
-        DISTINCT epci_code as siren,
-        ROUND(AVG(TRY_CAST(dist_urgence_min AS DOUBLE)),2) AS dist_urgence_moyenne_km
+    query_final =""" 
+    SELECT
+        df_epci.dept,
+        df_epci.id_epci,
+        df_epci.nom_epci,
+        'i148' AS id_indicator,
+        ROUND(AVG(TRY_CAST(dist_urgence_min AS DOUBLE)),2) AS valeur_brute
     FROM df_com
     LEFT JOIN df_dist_urg
     ON df_com.code_insee = df_dist_urg.code_insee
+    LEFT JOIN df_epci
+    ON df_com.epci_code = df_epci.id_epci
     WHERE epci_code != 'ZZZZZZZZZ'
-    GROUP BY epci_code
+    GROUP BY id_epci, nom_epci, dept
+    ORDER BY dept, id_epci
     """
 
-    df_dist_urg_moy = duckdb.sql(query)
+    df_dist_urg_moy = duckdb.sql(query_final)
     print(f"taille df_dist_urg_moy: {df_dist_urg_moy.df().shape}")
+
+    #sauvegarde du fichier final
+    output_file_moy = processed_dir / "i_148_dist_urgence.csv"
+    df_dist_urg_moy.write_csv(str(output_file_moy))
+    print(f"Fichier sauvegardé : {output_file_moy}")
 
     # Jointure des deux dataframes et du dataframe des epci
     query = """ 
     SELECT
-        d.siren as id_epci,
+        d.id_epci as id_epci,
         'i148' AS id_indicator,
-        e.dist_urgence_moyenne_km as valeur_brute,
+        e.valeur_brute as valeur_brute,
         '2024' AS annee
     FROM df_epci d
     LEFT JOIN df_dist_urg_moy e
-    ON d.siren = e.siren
+    ON d.id_epci = e.id_epci
     """
 
     df_dist_soin_final = duckdb.sql(query)

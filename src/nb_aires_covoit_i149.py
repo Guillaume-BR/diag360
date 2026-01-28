@@ -65,12 +65,42 @@ def main():
     ON e1.siren = e2.siren
     """
 
-    df_nb_lieu_covoit_relative = duckdb.sql(query)
+    df_nb_lieu_covoit_bdd = duckdb.sql(query)
 
     # Sauvegarde du fichier final
     output_file = processed_dir / "aires_covoit_per_epci.csv"
-    df_nb_lieu_covoit_relative.write_csv(str(output_file))
+    df_nb_lieu_covoit_bdd.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
+
+    #Query complete
+    # Calcul par epci du nombre de lieux de covoiturage pour 10000 habitants
+    query = """
+    WITH df_nb_lieu_covoit_filtered AS (
+        SELECT 
+            territoryid AS siren,
+            sum(valeur) AS nb_aires_covoiturage
+        FROM df_nb_lieu_covoit
+        WHERE type_lieu = 'Aire de covoiturage'
+        GROUP BY territoryid
+        )
+    
+    SELECT 
+        e1.dept,
+        e1.siren AS id_epci,
+        e1.nom_epci,
+        'i149' AS id_indicator,
+        ROUND(e2.nb_aires_covoiturage / e1.total_pop_tot * 10000,3) AS valeur_brute
+    FROM df_epci_filtered e1
+    LEFT JOIN df_nb_lieu_covoit_filtered e2
+    ON e1.siren = e2.siren
+    ORDER BY e1.dept, e1.siren
+    """
+
+    df_nb_lieu_covoit_complete = duckdb.sql(query)
+     #Sauvegarde du fichier complet
+    output_file_complete = processed_dir / "i149_aires_covoit.csv"
+    df_nb_lieu_covoit_complete.write_csv(str(output_file_complete))
+    print(f"Fichier complet sauvegardé : {output_file_complete}")
 
 
 if __name__ == "__main__":

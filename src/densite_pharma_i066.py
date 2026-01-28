@@ -64,13 +64,37 @@ def main():
     query = """ 
     SELECT 
         DISTINCT siren, 
+        dept,
+        raison_sociale AS nom_epci,
         TRY_CAST(REPLACE(total_pop_tot,' ','') AS INTEGER) as total_pop 
         FROM df_epci
     """
     df_epci_pop_tot = duckdb.sql(query)
 
-    # Calcul du nombre de pharmacie pour 10000 habitants
     query_final = """
+    SELECT
+        df_epci_pop_tot.dept,
+        df_epci_pop_tot.siren as id_epci,
+        df_epci_pop_tot.nom_epci,
+        'i066' AS id_indicator,
+        ROUND((result.valeur_brute/ df_epci_pop_tot.total_pop) * 10000, 2) AS valeur_brute
+    FROM df_epci_pop_tot
+    LEFT JOIN result 
+    ON result.id_epci = df_epci_pop_tot.siren
+    WHERE result.id_epci IS NOT NULL
+    ORDER BY df_epci_pop_tot.dept,df_epci_pop_tot.siren
+
+    """
+
+    df_densite_pharma_final = duckdb.sql(query_final)
+    print(f"df_densite_pharma_final.shape: {df_densite_pharma_final.df().shape}")
+
+    #Sauvegarde du fichier final
+    df_densite_pharma_final.write_csv(str(processed_dir / "i066_densite_pharma.csv"))
+    print(f"Fichier sauvegardé : {processed_dir / 'i066_densite_pharma.csv'}")
+
+    # Calcul du nombre de pharmacie pour 10000 habitants
+    query_bdd = """
     SELECT 
         result.id_epci,
         result.id_indicator,
@@ -82,7 +106,7 @@ def main():
     WHERE result.id_epci IS NOT NULL
     """
 
-    df_densite_pharma = duckdb.sql(query_final)
+    df_densite_pharma = duckdb.sql(query_bdd)
 
     # Sauvegarde du résultat final
     df_densite_pharma.write_csv(str(processed_dir / "densite_pharma_i066.csv"))
