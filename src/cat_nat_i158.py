@@ -3,10 +3,12 @@ import pandas as pd
 import duckdb
 import os
 from pathlib import Path
+from io import BytesIO
+import zipfile
 
 # Ajouter le dossier parent de src (le projet) au path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils.functions import *
+from utils.functions import download_file, extract_zip_from_bytes, create_dataframe_communes, create_dataframe_epci
 
 base_dir = Path(__file__).resolve().parent.parent  # racine du projet diag360
 data_dir = base_dir / "data" / "data_cat_nat"
@@ -23,19 +25,16 @@ def main():
     URL = (
         "https://www.data.gouv.fr/api/1/datasets/r/d6fb9e18-b66b-499c-8284-46a3595579cc"
     )
-    download_file(URL, extract_to=raw_dir, filename="gaspar.zip")
-    extract_zip(raw_dir / "gaspar.zip", extract_to=raw_dir)
-    for file in os.listdir(raw_dir):
-        if not file.startswith("catnat"):
-            os.remove(raw_dir / file)
-    path_cat_nat = raw_dir / "catnat_gaspar.csv"
-    df_cat_nat = pd.read_csv(path_cat_nat, sep=";", low_memory=False)
+    zip_content = download_file(URL)
+    with zipfile.ZipFile(BytesIO(zip_content)) as z:
+        with z.open("catnat_gaspar.csv") as f:
+            df_cat_nat = pd.read_csv(f, sep=";", low_memory=False)    
 
     # Création de la table duckdb pour les jointures
-    df_com = create_dataframe_communes(raw_dir)
+    df_com = create_dataframe_communes()
 
     # Création de la table duckdb des epci
-    df_epci = create_dataframe_epci(raw_dir)
+    df_epci = create_dataframe_epci()
 
     # Mise en forme des données
     # mapping = {
@@ -49,7 +48,8 @@ def main():
 
     # création de la table du code epci et du nom associé
     query = """
-    SELECT DISTINCT siren,
+    SELECT 
+        DISTINCT siren,
         raison_sociale AS nom_epci,
         dept
     FROM df_epci
@@ -99,8 +99,8 @@ def main():
         df_epci.nom_epci,
         'i158' AS id_indicator,
         df_cat_nat_temp.cat_nat_per_km2 as valeur_brute
-    FROM df_cat_nat_temp
-    LEFT JOIN df_epci
+    FROM df_epci
+    LEFT JOIN df_cat_nat_temp
     ON df_cat_nat_temp.siren = df_epci.siren
     ORDER BY df_epci.dept, df_epci.siren
     """

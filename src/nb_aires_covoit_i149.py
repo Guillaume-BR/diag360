@@ -25,13 +25,13 @@ def main():
     # download_file(url_nb_lieu_covoit, raw_dir, filename="nb_lieux_covoiturage.csv")
     # mais manque à priori des données
 
-    filename_nb_lieu_covoit = "nb-lieux-covoiturage_2025_export.csv"
+    filename = "nb-lieux-covoiturage_2025_export.csv"
 
     # Lecture des données relative au covoiturage
-    df_nb_lieu_covoit = duckdb.read_csv(raw_dir / filename_nb_lieu_covoit)
+    df_nb_lieu_covoit = duckdb.read_csv(raw_dir / filename)
 
     # Téléchargement des données epci pour jointure
-    df_epci = create_dataframe_epci(raw_dir)
+    df_epci = create_dataframe_epci()
 
     # On sélectionne uniquement les colonnes utiles
     query = """ 
@@ -97,6 +97,7 @@ def main():
     """
 
     df_nb_lieu_covoit_complete = duckdb.sql(query)
+     
      #Sauvegarde du fichier complet
     output_file_complete = processed_dir / "i149_aires_covoit.csv"
     df_nb_lieu_covoit_complete.write_csv(str(output_file_complete))

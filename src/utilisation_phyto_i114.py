@@ -3,11 +3,14 @@ import pandas as pd
 import duckdb
 import os
 from pathlib import Path
+from io import BytesIO
+import pyarrow.parquet as pq
+
 
 
 # Ajouter le dossier parent de src (le projet) au path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils.functions import *
+from utils.functions import download_file, create_dataframe_epci
 
 base_dir = Path(__file__).resolve().parent.parent  # racine du projet diag360
 data_dir = base_dir / "data" / "data_phyto"
@@ -21,22 +24,22 @@ processed_dir.mkdir(parents=True, exist_ok=True)
 
 def main():
     # Téléchargement de la table epci
-    df_epci = create_dataframe_epci(raw_dir)
+    df_epci = create_dataframe_epci()
 
     # Téléchagement de la table de la sau
     url = (
         "https://www.data.gouv.fr/api/1/datasets/r/022cb00f-38f2-4fe7-8895-e3467d3d9255"
     )
-    download_file(url, extract_to=raw_dir, filename="sau_2025.csv")
-    df_sau = pd.read_csv(raw_dir / "sau_2025.csv", sep=",")
+    content = download_file(url)
+    df_sau = pd.read_csv(BytesIO(content), sep=",")
     print(df_sau.head())
 
     # Téléchargement de la table phyto
     url_phyto = (
         "https://www.data.gouv.fr/api/1/datasets/r/a1fe6b6c-4658-4c24-a8d8-dec530bcfc7c"
     )
-    download_file(url_phyto, extract_to=raw_dir, filename="achat_commune_phyto.parquet")
-    df_phyto = duckdb.read_parquet(str(raw_dir / "achat_commune_phyto.parquet"))
+
+    df_phyto = duckdb.read_parquet(url_phyto)
 
     #Préparation de df_sau : on ne garde que 2020
     query_sau = """ 
@@ -46,7 +49,6 @@ def main():
     FROM df_sau
     WHERE geocode_epci NOT LIKE 'Z%' AND date_mesure LIKE '2020%'
     """
-    
     df_sau = duckdb.sql(query_sau)
 
     #query filtrer df_epci

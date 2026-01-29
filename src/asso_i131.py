@@ -7,7 +7,7 @@ from pathlib import Path
 
 # Ajouter le dossier parent de src (le projet) au path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils.functions import *
+from utils.functions import download_file, download_stock_file, create_dataframe_communes, create_dataframe_epci
 
 base_dir = Path(__file__).resolve().parent.parent  # racine du projet diag360
 data_dir = base_dir / "data" / "data_asso"
@@ -32,7 +32,7 @@ def asso_sans_alsace() -> pd.DataFrame:
         "https://www.data.gouv.fr/api/1/datasets/r/cc7b8f0c-45ea-4444-8b55-55d30bc34ac5"
     )
     filename_asso = "rna_waldec_20250901_complete.parquet"
-    download_file(url_complete, extract_to=raw_dir, filename=filename_asso)
+    download_stock_file(url_complete, extract_to=raw_dir, filename=filename_asso)
     df_asso = duckdb.read_parquet(str(raw_dir / filename_asso))
 
     # On garde les assos actives et on retire celles que l'on ne peut rattacher à une commune

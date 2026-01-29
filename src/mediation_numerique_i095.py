@@ -3,10 +3,11 @@ import pandas as pd
 import duckdb
 import os
 from pathlib import Path
+from io import BytesIO
 
 # Ajouter le dossier parent de src (le projet) au path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils.functions import *
+from utils.functions import download_file, create_dataframe_communes, create_dataframe_epci
 
 base_dir = Path(__file__).resolve().parent.parent  # racine du projet diag360
 data_dir = base_dir / "data" / "data_medi_num"
@@ -23,17 +24,15 @@ def main():
         "https://www.data.gouv.fr/api/1/datasets/r/398edc71-0d51-4cb6-9cbe-2540a4db573c"
     )
 
-    mediation_file = raw_dir / "mediation_numerique.csv"
-
     # Télécharger et extraire les données médiation
-    download_file(url, extract_to=raw_dir, filename="mediation_numerique.csv")
-    df_mediation_num = pd.read_csv(mediation_file, low_memory=False)
+    content = download_file(url)
+    df_mediation_num = pd.read_csv(BytesIO(content), low_memory=False)
 
     # Télecharger les données communes
-    df_com = create_dataframe_communes(raw_dir)
-
+    df_com = create_dataframe_communes()
+    
     # Création de df_epci
-    df_epci = create_dataframe_epci(raw_dir)
+    df_epci = create_dataframe_epci()
 
     # On ne garde que les colonnes siren, nom_epci et dept
     query = """
@@ -78,8 +77,8 @@ def main():
         e2.nom_epci,
         'i095' AS id_indicator,
         round(10000 * e1.nb_mediation_epci / e1.population_epci, 2) AS valeur_brute 
-    FROM df_epci_mediation AS e1
-    LEFT JOIN df_epci AS e2
+    FROM df_epci AS e2
+    LEFT JOIN df_epci_mediation AS e1
     ON e1.siren = e2.siren
     ORDER BY e2.dept,e2.siren
     """

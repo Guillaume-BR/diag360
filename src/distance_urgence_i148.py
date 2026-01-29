@@ -23,10 +23,10 @@ def main():
     df_dist_urg = duckdb.read_csv(raw_dir / "dist_urgence.csv", skiprows=2)
 
     # Création du dataframe des communes (cf functions.py)
-    df_com = create_dataframe_communes(raw_dir)
+    df_com = create_dataframe_communes()
 
     # Création de la table duckdb des epci
-    df_epci = create_dataframe_epci(raw_dir)
+    df_epci = create_dataframe_epci()
 
     # création de la table du code epci et du nom associé
     query = """

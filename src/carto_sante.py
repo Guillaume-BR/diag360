@@ -18,13 +18,16 @@ urls_dict = {
         }
 init_download = download_data(url=urls_dict, name_file_saved="")
 init_download.dict_download_file()
+
 #Téléchargement du fichier des communes et EPCI
-df_commune_epci = create_dataframe_communes(dir_path="./data/processed")
+df_commune_epci = create_dataframe_communes()
+
 # Formating des fichiers reçu pour avoir un dataframe exploitable
 apl_medecins = format_file(path=init_download.save_path + "/" + "data_apl_medecins.xlsx",extension="xlsx")
 apl_infirmiers = format_file(path=init_download.save_path + "/" + "data_apl_infirmiers.xlsx",extension="xlsx")
 apl_chirurgiens_dentiste = format_file(path=init_download.save_path + "/" + "data_apl_chirurgiens_dentiste.xlsx",extension="xlsx")
 apl_sages_femmes = format_file(path=init_download.save_path + "/" + "data_apl_sages_femmes.xlsx",extension="xlsx")
+
 # Dataframe
 df_apl_medecins = apl_medecins.read_file()
 df_apl_infirmiers = apl_infirmiers.read_file()

@@ -6,7 +6,7 @@ from pathlib import Path
 
 # Ajouter le dossier parent de src (le projet) au path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils.functions import *
+from utils.functions import create_dataframe_epci, create_dataframe_communes
 
 base_dir = Path(__file__).resolve().parent.parent  # racine du projet diag360
 data_dir = base_dir / "data" / "risques_majeurs"
@@ -61,8 +61,20 @@ def main():
     df_risques = fetch_api_payload()
 
     # Chargement de la table des communes
-    df_com = create_dataframe_communes(raw_dir)
+    df_com = create_dataframe_communes()
 
+    # Chargement de la table epci
+    df_epci = create_dataframe_epci()
+
+    query = """ 
+        SELECT 
+            DISTINCT siren AS id_epci,
+            raison_sociale AS nom_epci,
+            dept
+        FROM df_epci
+    """
+    df_epci = duckdb.sql(query)
+   
     #jointure avec les communes pour obtenir les codes epci
     query = """ 
     SELECT 
@@ -128,18 +140,6 @@ def main():
     output_path = processed_dir / "i119_total_risques_epci.csv"
     df_total_risques_par_epci.write_csv(str(output_path))
     print(f"Données risques majeurs sauvegardées dans {output_path}")
-
-    df_epci = create_dataframe_epci(raw_dir)
-
-    query = """ 
-        SELECT 
-            DISTINCT siren AS id_epci,
-            raison_sociale AS nom_epci,
-            dept
-        FROM df_epci
-    """
-
-    df_epci = duckdb.sql(query)
 
     #query complete with join
     query = """

@@ -4,9 +4,20 @@ import os
 import pandas as pd
 import duckdb
 from pathlib import Path
+import logging
+from io import BytesIO
 
+def download_file(url: str) -> bytes:
+    """Télécharge le fichier et retourne son contenu en mémoire"""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Téléchargement du fichier : {url}")
+    with requests.get(url, stream=True) as response:
+        response.raise_for_status()
+        content = response.content
+    logger.info("Fichier téléchargé avec succès")
+    return content
 
-def download_file(url: str, extract_to: str = ".", filename: str = None) -> None:
+def download_stock_file(url: str, extract_to: str = ".", filename: str = None) -> None:
     """
     Télécharge un fichier depuis une URL et l'enregistre localement.
 
@@ -38,6 +49,22 @@ def download_file(url: str, extract_to: str = ".", filename: str = None) -> None
             f.write(response.content)
         print(f"Fichier téléchargé avec succès : {filename}")
 
+def extract_zip_from_bytes(zip_bytes: bytes, extract_to: str = ".") -> None:
+    """
+    Extrait le contenu d'une archive ZIP fournie en mémoire.
+
+    Parameters
+    ----------
+    zip_bytes : bytes
+        Contenu binaire de l'archive ZIP.
+    extract_to : str, optional
+        Répertoire de destination (par défaut : courant).
+    """
+
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+        z.extractall(extract_to)
+
+    print(f"Extraction terminée dans le dossier : {extract_to}")
 
 def extract_zip(zip_filename: str, extract_to: str = ".") -> None:
     """
@@ -114,12 +141,6 @@ def float_to_codepostal(df: pd.DataFrame, col: str) -> pd.DataFrame:
     pandas.DataFrame
         DataFrame avec la colonne des codes postaux convertie en chaînes
         de longueur 5.
-
-    Notes
-    -----
-    - La fonction modifie le DataFrame en place et le retourne.
-    - Les valeurs manquantes sont converties en chaînes `'nan'`
-      si elles ne sont pas nettoyées en amont.
     """
 
     df[col] = df[col].astype(str).str.replace(".0", "", regex=False).str.zfill(5)
@@ -136,31 +157,26 @@ def homogene_nan(df):
     return df
 
 
-def create_dataframe_communes(dir_path):
+def create_dataframe_communes():
     com_url = (
         "https://www.data.gouv.fr/api/1/datasets/r/f5df602b-3800-44d7-b2df-fa40a0350325"
     )
-    download_file(com_url, extract_to=dir_path, filename="communes_france_2025.csv")
-    df_com = pd.read_csv(dir_path + "/" + "communes_france_2025.csv")
+    content = download_file(com_url)
+    print("Fichier des communes téléchargé")
+    df_com = pd.read_csv(BytesIO(content))
     df_com = float_to_codepostal(df_com, "code_postal")
+    print("Dataframe communes créé")
     return df_com
 
 
-def create_dataframe_epci(extract_dir):
+def create_dataframe_epci():
     epci_url = (
         "https://www.data.gouv.fr/api/1/datasets/r/6e05c448-62cc-4470-aa0f-4f31adea0bc4"
     )
-    download_file(epci_url, extract_to=extract_dir, filename="data_epci.csv")
-    src = extract_dir / "data_epci.csv"
-    dst = extract_dir / "data_epci_utf8.csv"
+    content = download_file(epci_url)
 
-    with open(src, "r", encoding="latin1") as f:
-        content = f.read()
-
-    with open(dst, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    df_epci = duckdb.read_csv(str(dst), header=True, sep=";")
+    df_epci = pd.read_csv(BytesIO(content),sep=";", encoding='latin1')
+    print("Dataframe EPCI créé")
     return df_epci
 
 def create_full(path_folder):

@@ -3,10 +3,11 @@ import pandas as pd
 import duckdb
 import os
 from pathlib import Path
+from io import BytesIO
 
 # Ajouter le dossier parent de src (le projet) au path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils.functions import *
+from utils.functions import download_file, create_dataframe_communes, create_dataframe_epci
 
 base_dir = Path(__file__).resolve().parent.parent  # racine du projet diag360
 data_dir = base_dir / "data" / "data_densite_pharma"
@@ -23,16 +24,14 @@ def main():
     url = (
         "https://www.data.gouv.fr/api/1/datasets/r/2ce43ade-8d2c-4d1d-81da-ca06c82abc68"
     )
-    download_file(url, extract_to=raw_dir, filename="pharmacies.csv")
-    df_pharma = pd.read_csv(
-        raw_dir / "pharmacies.csv", sep=";", dtype=str, skiprows=1, header=None
-    )
+    content = download_file(url)
+    df_pharma = pd.read_csv(BytesIO(content), sep=";", dtype=str, skiprows=1, header=None)
 
     # Chargement de la table epci
-    df_epci = create_dataframe_epci(raw_dir)
+    df_epci = create_dataframe_epci()
 
     # Chargement de la table des communes
-    df_com = create_dataframe_communes(raw_dir)
+    df_com = create_dataframe_communes()
 
     # Traitement des données de pharmacies
     df_pharma = df_pharma.iloc[:, [15, 19]]

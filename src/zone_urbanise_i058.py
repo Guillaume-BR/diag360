@@ -5,6 +5,8 @@ import geopandas as gpd
 import duckdb
 from pathlib import Path
 from shapely import wkb
+import io
+import pyarrow.parquet as pq
 
 
 # Ajouter le dossier parent de src (le projet) au path
@@ -24,27 +26,23 @@ processed_dir.mkdir(parents=True, exist_ok=True)
 def main():
     # Chargement local des données mais sinon utiliser :
     # https://docs.google.com/spreadsheets/d/1y6yy7_XCmhSUIqBmzZ200mgMo93YuZS8/edit?usp=sharing&ouid=108793438427721456504&rtpof=true&sd=true
-    path_zones_urb = base_dir / "data" / "raw" / "zones_urbaines.csv"
+    path_zones_urb = raw_dir / "zones_urbaines.csv"
     df_zones_urb = pd.read_csv(path_zones_urb)
 
     print(df_zones_urb.head())
 
     # Chargement des données des EPCI
-    df_epci = create_dataframe_epci(raw_dir)
-
-    print(df_epci.df().head())
+    df_epci = create_dataframe_epci()
 
     # Chargement des données des aménagements cyclables
     url = (
         "https://www.data.gouv.fr/api/1/datasets/r/f5d6ae97-b62e-46a7-ad5e-736c8084cee8"
     )
-    download_file(url, extract_to=raw_dir, filename="amenagement_cyclable.parquet")
-    df_amenagement_cyclable = duckdb.read_parquet(
-        str(raw_dir / "amenagement_cyclable.parquet")
-    )
+
+    df_amenagement_cyclable = duckdb.read_parquet(url)
 
     # Chargement des données des communes
-    df_com = create_dataframe_communes(raw_dir)
+    df_com = create_dataframe_communes()
 
     # Traitement des données des zones urbaines
     df_zones_urb.drop("Unnamed: 6", axis=1, inplace=True)

@@ -23,10 +23,10 @@ def main():
     df_dist_pharma = duckdb.read_csv(raw_dir / "dist_pharma.csv", skiprows=2)
 
     #Création des données epci
-    df_epci = create_dataframe_epci(raw_dir)
+    df_epci = create_dataframe_epci()
 
     # Création du dataframe des communes (cf functions.py)
-    df_com = create_dataframe_communes(raw_dir)
+    df_com = create_dataframe_communes()
 
     # Changement des noms de colonnes
     mapping_pharma = {
@@ -47,22 +47,30 @@ def main():
     """
     df_epci = duckdb.sql(query)
 
-    query_final =""" 
+    query_final ="""
+    WITH dist_avg AS (
+    SELECT
+        df_com.epci_code AS epci_code,
+        ROUND(AVG(TRY_CAST(dist_pharma_min AS DOUBLE)),2) AS dist_pharma_moyenne
+    FROM df_com
+    LEFT JOIN df_dist_pharma
+    ON df_com.code_insee = df_dist_pharma.code_insee
+    WHERE epci_code != 'ZZZZZZZZZ'
+    GROUP BY epci_code
+    )
+
     SELECT
         df_epci.dept,
         df_epci.id_epci,
         df_epci.nom_epci,
-        ROUND(AVG(TRY_CAST(dist_pharma_min AS DOUBLE)),2) AS valeur_brute
-    FROM df_com
-    LEFT JOIN df_dist_pharma
-    ON df_com.code_insee = df_dist_pharma.code_insee
-    LEFT JOIN df_epci
-    ON df_com.epci_code = df_epci.id_epci
-    WHERE epci_code != 'ZZZZZZZZZ'
-    GROUP BY id_epci, nom_epci, dept
+        dist_avg.dist_pharma_moyenne AS valeur_brute
+    FROM df_epci
+    LEFT JOIN dist_avg
+    ON df_epci.id_epci = dist_avg.epci_code
     ORDER BY dept, id_epci
     """
     df_dist_pharma_final = duckdb.sql(query_final)
+    
     # Sauvegarde du fichier final
     output_file_final = processed_dir / "i_147_dist_pharma.csv"
     df_dist_pharma_final.write_csv(str(output_file_final))

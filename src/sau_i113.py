@@ -3,11 +3,12 @@ import pandas as pd
 import duckdb
 import os
 from pathlib import Path
+from io import BytesIO
 
 
 # Ajouter le dossier parent de src (le projet) au path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils.functions import *
+from utils.functions import download_file, create_dataframe_communes, create_dataframe_epci
 
 base_dir = Path(__file__).resolve().parent.parent  # racine du projet diag360
 data_dir = base_dir / "data" / "data_sau"
@@ -21,14 +22,25 @@ processed_dir.mkdir(parents=True, exist_ok=True)
 
 def main():
     # Téléchargement de la table com
-    df_com = create_dataframe_communes(raw_dir)
+    df_com = create_dataframe_communes()
+
+    #Création de df_epci
+    df_epci = create_dataframe_epci()
+    query = """ 
+        SELECT 
+            DISTINCT siren AS id_epci,
+            raison_sociale AS nom_epci,
+            dept
+        FROM df_epci
+    """
+    df_epci = duckdb.sql(query)
 
     # Téléchagement de la table de la sau
     url = (
         "https://www.data.gouv.fr/api/1/datasets/r/022cb00f-38f2-4fe7-8895-e3467d3d9255"
     )
-    download_file(url, extract_to=raw_dir, filename="sau_2025.csv")
-    df_sau = pd.read_csv(raw_dir / "sau_2025.csv", sep=",")
+    content = download_file(url)
+    df_sau = pd.read_csv(BytesIO(content), sep=",")
 
     # calcul de la superficie des EPCI à partir des communes
     query = """
@@ -64,20 +76,7 @@ def main():
     df_sau_merged.write_csv(str(processed_dir / "part_sau_sur_total.csv"))
     print("Données sauvegardées dans part_sau_sur_total.csv")
 
-    df_epci = create_dataframe_epci(raw_dir)
-
     # query complete
-    query = """ 
-        SELECT 
-            DISTINCT siren AS id_epci,
-            raison_sociale AS nom_epci,
-            dept
-        FROM df_epci
-    """
-
-    df_epci = duckdb.sql(query)
-
-    # query complete with join
     query = """
         SELECT
             s1.dept,
