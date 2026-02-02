@@ -3,6 +3,7 @@ import pandas as pd
 import duckdb
 import os
 from pathlib import Path
+from io import BytesIO
 
 
 # Ajouter le dossier parent de src (le projet) au path
@@ -71,7 +72,7 @@ def asso_sans_alsace() -> pd.DataFrame:
     """
     df_insee_null = duckdb.sql(query_insee_null).df()
 
-    df_com = create_dataframe_communes(raw_dir)
+    df_com = create_dataframe_communes()
 
     for _, row in df_insee_null.iterrows():
         code_postal = row["adrs_codepostal"]
@@ -163,8 +164,8 @@ def asso_alsace_moselle() -> pd.DataFrame:
 
     df_asso = pd.DataFrame()
     for dept, url in dico_url.items():
-        download_file(url, extract_to=raw_dir, filename=f"asso_{dept}.csv")
-        df_dept = pd.read_csv(str(raw_dir / f"asso_{dept}.csv"), sep=";", dtype=str)
+        content = download_file(url)
+        df_dept = pd.read_csv(BytesIO(content), sep=";", dtype=str)
         df_asso = pd.concat([df_asso, df_dept], ignore_index=True)
 
     # On garde les assos inscrites
@@ -214,10 +215,10 @@ def main():
     df_asso_als = asso_alsace_moselle().reset_index(drop=True)
 
     # Création de la table duckdb des communes
-    df_com = create_dataframe_communes(raw_dir)
+    df_com = create_dataframe_communes()
 
     # Création de la table duckdb des epci
-    df_epci = create_dataframe_epci(raw_dir)
+    df_epci = create_dataframe_epci()
 
     # jointure avec les communes pour récupérer les codes insee
     query_join = """ 
@@ -259,7 +260,7 @@ def main():
         raison_sociale,
         dept,
         insee,
-        TRY_CAST(REPLACE(total_pop_tot, ' ', '') AS INTEGER) AS total_pop_tot,
+        TRY_CAST(REPLACE(total_pop_mun, ' ', '') AS INTEGER) AS total_pop_mun,
     from df_epci
     """
 
@@ -268,16 +269,17 @@ def main():
     # query pour le calcul de l'indicateur i131
     query = """
     SELECT 
-        e2.dept,
+        e2.dept as dept_id,
         CAST(e2.siren AS VARCHAR) as id_epci, 
-        e2.raison_sociale as nom_epci,
-        'i131' AS id_indcator,
-        ROUND(count(e1.adrs_codeinsee) / e2.total_pop_tot * 1000,2) AS valeur_brute
+        e2.raison_sociale as epci_lib,
+        'i131' AS id_indicateur,
+        ROUND(count(e1.adrs_codeinsee) / e2.total_pop_mun * 1000,2) AS valeur_brute,
+        '2025' AS annee
     FROM df_epci e2
     LEFT JOIN df_asso_complete e1
     ON e1.adrs_codeinsee = e2.insee
-    GROUP BY e2.dept,e2.siren,e2.total_pop_tot, e2.raison_sociale
-    ORDER BY dept, siren
+    GROUP BY e2.dept,e2.siren,e2.total_pop_mun, e2.raison_sociale
+    ORDER BY dept_id, id_epci
     """
 
     df_asso_epci = duckdb.sql(query)
@@ -291,7 +293,7 @@ def main():
     query_bdd = """
     SELECT 
         id_epci, 
-        id_indcator,
+        id_indicateur,
         valeur_brute,
         '2025' AS annee
     FROM df_asso_epci

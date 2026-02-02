@@ -8,7 +8,7 @@ import zipfile
 
 # Ajouter le dossier parent de src (le projet) au path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils.functions import download_file, extract_zip_from_bytes, create_dataframe_communes, create_dataframe_epci
+from utils.functions import download_file, create_dataframe_communes, create_dataframe_epci
 
 base_dir = Path(__file__).resolve().parent.parent  # racine du projet diag360
 data_dir = base_dir / "data" / "data_cat_nat"
@@ -49,13 +49,13 @@ def main():
     # création de la table du code epci et du nom associé
     query = """
     SELECT 
-        DISTINCT siren,
+        DISTINCT TRY_CAST(siren AS INT) AS siren,
         raison_sociale AS nom_epci,
         dept
     FROM df_epci
     """
-    df_epci = duckdb.sql(query)
-    print(f"df_epci.shape: {df_epci.df().shape}")
+    df_epci_filtered = duckdb.sql(query)
+    print(f"df_epci_filtered.shape: {df_epci_filtered.df().shape}")
 
     query = """
     SELECT cod_commune AS code_insee, count(*) AS nb_cat_nat
@@ -94,15 +94,16 @@ def main():
     # Ajout du nom des epci
     query_complete = """
     SELECT 
-        df_epci.dept,
-        df_epci.siren as id_epci,
-        df_epci.nom_epci,
-        'i158' AS id_indicator,
-        df_cat_nat_temp.cat_nat_per_km2 as valeur_brute
-    FROM df_epci
+        df_epci_filtered.dept as dept_id,
+        CAST(df_epci_filtered.siren AS VARCHAR) as id_epci,
+        df_epci_filtered.nom_epci as epci_lib,
+        'i158' AS id_indicateur,
+        df_cat_nat_temp.cat_nat_per_km2 as valeur_brute,
+        '2025' AS annee
+    FROM df_epci_filtered
     LEFT JOIN df_cat_nat_temp
-    ON df_cat_nat_temp.siren = df_epci.siren
-    ORDER BY df_epci.dept, df_epci.siren
+    ON df_cat_nat_temp.siren = df_epci_filtered.siren
+    ORDER BY df_epci_filtered.dept, df_epci_filtered.siren
     """
 
     df_cat_nat_final = duckdb.sql(query_complete)
@@ -117,7 +118,7 @@ def main():
     query_bdd = """
         SELECT 
             id_epci,
-            id_indicator,
+            id_indicateur as id_indicator,
             valeur_brute,
             '2025' AS annee
         FROM df_cat_nat_final

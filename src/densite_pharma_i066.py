@@ -62,27 +62,27 @@ def main():
     # On garde la population totale des epci
     query = """ 
     SELECT 
-        DISTINCT siren, 
+        DISTINCT TRY_CAST(siren AS INTEGER) as siren, 
         dept,
         raison_sociale AS nom_epci,
-        TRY_CAST(REPLACE(total_pop_tot,' ','') AS INTEGER) as total_pop 
+        TRY_CAST(REPLACE(total_pop_mun,' ','') AS INTEGER) as total_pop 
         FROM df_epci
     """
     df_epci_pop_tot = duckdb.sql(query)
 
     query_final = """
     SELECT
-        df_epci_pop_tot.dept,
-        df_epci_pop_tot.siren as id_epci,
-        df_epci_pop_tot.nom_epci,
-        'i066' AS id_indicator,
-        ROUND((result.valeur_brute/ df_epci_pop_tot.total_pop) * 10000, 2) AS valeur_brute
+        df_epci_pop_tot.dept AS dept_id,
+        CAST(df_epci_pop_tot.siren AS VARCHAR) as id_epci,
+        df_epci_pop_tot.nom_epci as epci_lib,
+        'i066' AS id_indicateur,
+        ROUND((result.valeur_brute/ df_epci_pop_tot.total_pop) * 10000, 2) AS valeur_brute,
+        result.annee
     FROM df_epci_pop_tot
     LEFT JOIN result 
     ON result.id_epci = df_epci_pop_tot.siren
     WHERE result.id_epci IS NOT NULL
     ORDER BY df_epci_pop_tot.dept,df_epci_pop_tot.siren
-
     """
 
     df_densite_pharma_final = duckdb.sql(query_final)
@@ -95,14 +95,11 @@ def main():
     # Calcul du nombre de pharmacie pour 10000 habitants
     query_bdd = """
     SELECT 
-        result.id_epci,
-        result.id_indicator,
-        ROUND((result.valeur_brute/ df_epci_pop_tot.total_pop) * 10000, 2) AS valeur_brute,
-        result.annee
-    FROM df_epci_pop_tot
-    LEFT JOIN result 
-    ON result.id_epci = df_epci_pop_tot.siren
-    WHERE result.id_epci IS NOT NULL
+        id_epci,
+        id_indicateur as id_indicator,
+        valeur_brute,
+        annee
+    FROM df_densite_pharma_final
     """
 
     df_densite_pharma = duckdb.sql(query_bdd)
