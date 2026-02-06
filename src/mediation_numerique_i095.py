@@ -27,22 +27,10 @@ def main():
     # Télécharger et extraire les données médiation
     content = download_file(url)
     df_mediation_num = pd.read_csv(BytesIO(content), low_memory=False)
-
-    # Télecharger les données communes
-    df_com = create_dataframe_communes()
     
     # Création de df_epci
-    df_epci = create_dataframe_epci()
+    df_epci = pd.read_csv(base_dir / "data" / "processed" / "epci_membres.csv", sep=',')
 
-    # On ne garde que les colonnes siren, nom_epci et dept
-    query = """
-    SELECT 
-        DISTINCT siren,
-        raison_sociale AS nom_epci,
-        dept
-    FROM df_epci
-    """
-    df_epci = duckdb.sql(query)
 
     # Regroupement par code_insee communes
     query = """ 
@@ -57,54 +45,25 @@ def main():
     # Jointure des données
     query = """ 
     SELECT
-        df_com.epci_code AS siren,
-        SUM(df_mediation_num_grouped.nb_mediation) AS nb_mediation_epci,
-        SUM(df_com.population) AS population_epci
-    FROM df_com
+        df_epci.dept_epci AS dept_id,
+        df_epci.siren AS id_epci,
+        df_epci.epci_nom AS epci_lib,
+        'i095' AS id_indicator,
+        ROUND(SUM(df_mediation_num_grouped.nb_mediation) / df_epci.total_pop_mun * 10000, 2) AS valeur_brute,
+        '2024' AS annee
+    FROM df_epci
     LEFT JOIN df_mediation_num_grouped
-    ON df_com.code_insee = df_mediation_num_grouped.code_insee
-    WHERE epci_code::VARCHAR NOT LIKE '%ZZZZ'
-    GROUP BY df_com.epci_code
+    ON df_epci.code_insee = df_mediation_num_grouped.code_insee
+    GROUP BY df_epci.siren, dept_id, epci_lib, df_epci.total_pop_mun
+    ORDER BY dept_id, id_epci
     """
     df_epci_mediation = duckdb.sql(query)
     print(df_epci_mediation.df().head())
 
-    # dataframe final avec le nombre de médiation numérique pour 10000 habitants
-    query = """ 
-    SELECT 
-        e2.dept,
-        e2.siren as id_epci,
-        e2.nom_epci,
-        'i095' AS id_indicator,
-        round(10000 * e1.nb_mediation_epci / e1.population_epci, 2) AS valeur_brute 
-    FROM df_epci AS e2
-    LEFT JOIN df_epci_mediation AS e1
-    ON e1.siren = e2.siren
-    ORDER BY e2.dept,e2.siren
-    """
-
-    df_mediation_num_final = duckdb.sql(query)
-
     # Sauvegarde du fichier final
     output_file = processed_dir / "i095_mediation_numerique_per_10k_habs.csv"
-    df_mediation_num_final.write_csv(str(output_file))
+    df_epci_mediation.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
-
-    query_bdd = """
-    SELECT 
-        id_epci,
-         id_indicator,
-        valeur_brute,
-        '2026' AS annee
-    FROM df_mediation_num_final
-    """
-
-    df_mediation_num_bdd = duckdb.sql(query_bdd)
-
-    # sauvegarde pour la bdd
-    output_file_bdd = processed_dir / "mediation_numerique_bdd.csv"
-    df_mediation_num_bdd.write_csv(str(output_file_bdd))
-    print(f"Fichier sauvegardé pour la bdd : {output_file_bdd}")
 
 
 if __name__ == "__main__":

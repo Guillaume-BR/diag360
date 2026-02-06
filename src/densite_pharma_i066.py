@@ -28,7 +28,7 @@ def main():
     df_pharma = pd.read_csv(BytesIO(content), sep=";", dtype=str, skiprows=1, header=None)
 
     # Chargement de la table epci
-    df_epci = create_dataframe_epci()
+    df_epci = pd.read_csv(base_dir / "data" / "processed" / "epci_membres.csv", sep=',')
 
     # Chargement de la table des communes
     df_com = create_dataframe_communes()
@@ -43,46 +43,37 @@ def main():
     df_pharma["code_postal"] = df_pharma["code_insee"].apply(lambda x: x.split(" ")[0])
     df_pharma.drop(columns=["code_insee"], inplace=True)
 
-    # Jointure avec les données des communes pour récupérer le nombre de pharma par commune
+    df_pharma['code_postal'] = df_pharma['code_postal'].apply(lambda x: '75000' if x.startswith('75') else x)
+
+    # Jointure avec les données des communes pour récupérer le nombre de pharma par epci
     query = """
     SELECT
-        df_com.epci_code AS id_epci,
-        'i066' AS id_indicator,
-        COUNT(df_pharma.code_postal) AS valeur_brute,
-        '2025' AS annee
-    FROM df_pharma
-    LEFT JOIN df_com
+        df_epci.siren,
+        COUNT(df_pharma.code_postal) AS nb_pharma,
+    FROM df_com
+    LEFT JOIN df_pharma
         ON df_pharma.code_postal = df_com.code_postal
-    GROUP BY id_epci
-    HAVING id_epci != 'ZZZZZZZZZ'
+    LEFT JOIN df_epci
+        ON df_com.code_insee = df_epci.code_insee
+    GROUP BY df_epci.siren
     """
 
-    result = duckdb.sql(query)
-
-    # On garde la population totale des epci
-    query = """ 
-    SELECT 
-        DISTINCT TRY_CAST(siren AS INTEGER) as siren, 
-        dept,
-        raison_sociale AS nom_epci,
-        TRY_CAST(REPLACE(total_pop_mun,' ','') AS INTEGER) as total_pop 
-        FROM df_epci
-    """
-    df_epci_pop_tot = duckdb.sql(query)
+    df_nb_pharma = duckdb.sql(query)
+    print(f"df_nb_pharma.shape: {df_nb_pharma.df().shape}")
 
     query_final = """
     SELECT
-        df_epci_pop_tot.dept AS dept_id,
-        CAST(df_epci_pop_tot.siren AS VARCHAR) as id_epci,
-        df_epci_pop_tot.nom_epci as epci_lib,
+        df_epci.dept_epci AS dept_id,
+        CAST(df_epci.siren AS VARCHAR) as id_epci,
+        df_epci.epci_nom as epci_lib,
         'i066' AS id_indicateur,
-        ROUND((result.valeur_brute/ df_epci_pop_tot.total_pop) * 10000, 2) AS valeur_brute,
-        result.annee
-    FROM df_epci_pop_tot
-    LEFT JOIN result 
-    ON result.id_epci = df_epci_pop_tot.siren
-    WHERE result.id_epci IS NOT NULL
-    ORDER BY df_epci_pop_tot.dept,df_epci_pop_tot.siren
+        ROUND((df_nb_pharma.nb_pharma / df_epci.total_pop_mun) * 10000, 2) AS valeur_brute,
+        '2025' AS annee
+    FROM df_epci
+    LEFT JOIN df_nb_pharma
+    ON df_nb_pharma.siren = df_epci.siren
+    GROUP BY dept_id, df_epci.siren, epci_lib, valeur_brute
+    ORDER BY df_epci.dept_epci,df_epci.siren
     """
 
     df_densite_pharma_final = duckdb.sql(query_final)
@@ -91,22 +82,6 @@ def main():
     #Sauvegarde du fichier final
     df_densite_pharma_final.write_csv(str(processed_dir / "i066_densite_pharma.csv"))
     print(f"Fichier sauvegardé : {processed_dir / 'i066_densite_pharma.csv'}")
-
-    # Calcul du nombre de pharmacie pour 10000 habitants
-    query_bdd = """
-    SELECT 
-        id_epci,
-        id_indicateur as id_indicator,
-        valeur_brute,
-        annee
-    FROM df_densite_pharma_final
-    """
-
-    df_densite_pharma = duckdb.sql(query_bdd)
-
-    # Sauvegarde du résultat final
-    df_densite_pharma.write_csv(str(processed_dir / "densite_pharma_i066.csv"))
-    print("Traitement terminé. Fichier sauvegardé dans le dossier 'processed'.")
 
 
 if __name__ == "__main__":

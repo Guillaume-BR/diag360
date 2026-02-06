@@ -60,62 +60,48 @@ def main():
     # chargement des données des pharmacies
     df_risques = fetch_api_payload()
 
-    # Chargement de la table des communes
-    df_com = create_dataframe_communes()
-
     # Chargement de la table epci
-    df_epci = create_dataframe_epci()
-
-    query = """ 
-        SELECT 
-            DISTINCT siren AS id_epci,
-            raison_sociale AS nom_epci,
-            dept
-        FROM df_epci
-    """
-    df_epci = duckdb.sql(query)
+    df_epci = pd.read_csv(base_dir / "data" / "processed" / "epci_membres.csv", sep=',')
    
     #jointure avec les communes pour obtenir les codes epci
     query = """ 
     SELECT 
-        df_com.epci_code AS id_epci,
+        df_epci.siren AS id_epci,
         df_risques.*
     FROM df_risques
-    LEFT JOIN df_com
-        ON df_risques.code_insee = df_com.code_insee"""
+    LEFT JOIN df_epci
+        ON df_risques.code_insee = df_epci.code_insee"""
     
     df_risques_epci = duckdb.sql(query)
     print(df_risques_epci.df().head())
 
     #compter le nombre de risques majeurs par epci
     query = """ 
-    SELECT
-        id_epci,
-        SUM(TRY_CAST(inondations AS INTEGER)) AS inondations,
-        SUM(TRY_CAST(mouvements_terrain AS INTEGER)) AS mouvements_terrain,
-        SUM(TRY_CAST(seismes AS INTEGER)) AS seismes,
-        SUM(TRY_CAST(avalanches AS INTEGER)) AS avalanches,
-        SUM(TRY_CAST(feux_foret AS INTEGER)) AS feux_foret,
-        SUM(TRY_CAST(phenomenes_atmo AS INTEGER)) AS phenomenes_atmo,
-        SUM(TRY_CAST(eruptions AS INTEGER)) AS eruptions,
-        SUM(TRY_CAST(nucleaire AS INTEGER)) AS nucleaire,
-        SUM(TRY_CAST(barrage AS INTEGER)) AS barrage,
-        SUM(TRY_CAST(transport_matieres AS INTEGER)) AS transport_matieres,
-        SUM(TRY_CAST(engins_guerre AS INTEGER)) AS engins_guerre,
-        SUM(TRY_CAST(affaissements_miniers AS INTEGER)) AS affaissements_miniers,
-        SUM(TRY_CAST(industriel AS INTEGER)) AS industriel
-    FROM df_risques_epci
-    WHERE id_epci IS NOT NULL and id_epci != 'ZZZZZZZZZ'
-    GROUP BY id_epci
+SELECT
+    id_epci,
+    SUM(TRY_CAST(inondations AS INTEGER)) AS inondations,
+    SUM(TRY_CAST(mouvements_terrain AS INTEGER)) AS mouvements_terrain,
+    SUM(TRY_CAST(seismes AS INTEGER)) AS seismes,
+    SUM(TRY_CAST(avalanches AS INTEGER)) AS avalanches,
+    SUM(TRY_CAST(feux_foret AS INTEGER)) AS feux_foret,
+    SUM(TRY_CAST(phenomenes_atmo AS INTEGER)) AS phenomenes_atmo,
+    SUM(TRY_CAST(eruptions AS INTEGER)) AS eruptions,
+    SUM(TRY_CAST(nucleaire AS INTEGER)) AS nucleaire,
+    SUM(TRY_CAST(barrage AS INTEGER)) AS barrage,
+    SUM(TRY_CAST(transport_matieres AS INTEGER)) AS transport_matieres,
+    SUM(TRY_CAST(engins_guerre AS INTEGER)) AS engins_guerre,
+    SUM(TRY_CAST(affaissements_miniers AS INTEGER)) AS affaissements_miniers,
+    SUM(TRY_CAST(industriel AS INTEGER)) AS industriel
+FROM df_risques_epci
+GROUP BY id_epci
     """
 
     df_total_risques = duckdb.sql(query)
+    print(df_total_risques.df().head())
 
-    #MAitenant si pour chaque risque on mets si >0 alors 1 sinon 0
-    query_bdd = """
-    SELECT
-        id_epci,
-        'i119' AS id_indicator,
+    query = """ 
+    SELECT 
+        df_total_risques.id_epci,
         SUM(CASE WHEN inondations > 0 THEN 1 ELSE 0 END) +
         SUM(CASE WHEN mouvements_terrain > 0 THEN 1 ELSE 0 END) +
         SUM(CASE WHEN seismes > 0 THEN 1 ELSE 0 END) +
@@ -129,30 +115,32 @@ def main():
         SUM(CASE WHEN engins_guerre > 0 THEN 1 ELSE 0 END) +
         SUM(CASE WHEN affaissements_miniers > 0 THEN 1 ELSE 0 END) +
         SUM(CASE WHEN industriel > 0 THEN 1 ELSE 0 END)
-        AS total_risques,
-        '2019' AS annee
+        AS total_risques
     FROM df_total_risques
-    GROUP BY id_epci;
-    """
-    df_total_risques_par_epci = duckdb.sql(query_bdd)
-
-    #sauvegarde du fichier traité
-    output_path = processed_dir / "i119_total_risques_epci.csv"
-    df_total_risques_par_epci.write_csv(str(output_path))
-    print(f"Données risques majeurs sauvegardées dans {output_path}")
+    GROUP BY id_epci
+        """
+    df_total_risques = duckdb.sql(query)
+    print(df_total_risques.df().head())
 
     #query complete with join
     query = """
+    WITH s1 AS (
+    SELECT DISTINCT siren, dept_epci, epci_nom
+    FROM df_epci
+        )
         SELECT
-            s1.dept,
-            CAST(s1.id_epci AS VARCHAR) AS id_epci,
-            s1.nom_epci,
+            s1.dept_epci AS dept_id,
+            CAST(s1.siren AS VARCHAR) AS id_epci,
+            s1.epci_nom AS epci_lib,
             'i119' AS id_indicator,
-            s2.total_risques as valeur_brute 
-        FROM df_epci AS s1
-        LEFT JOIN df_total_risques_par_epci AS s2
-            ON CAST(s1.id_epci AS VARCHAR) = CAST(s2.id_epci AS VARCHAR)
-        ORDER BY s1.dept, s1.id_epci
+            s2.total_risques
+        AS valeur_brute,
+            '2019' AS annee
+        FROM s1
+        LEFT JOIN df_total_risques AS s2
+            ON CAST(s1.siren AS VARCHAR) = CAST(s2.id_epci AS VARCHAR)
+        GROUP BY s1.dept_epci, s1.siren, s1.epci_nom, s2.total_risques
+        ORDER BY s1.dept_epci, s1.siren
     """
 
     df_complete = duckdb.sql(query)

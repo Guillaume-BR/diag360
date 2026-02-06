@@ -37,50 +37,27 @@ def main():
         columns={"numepci": "id_epci", "txcouv_epci": "valeur_brute"}
     )
 
-    query = """
-    SELECT
-        id_epci,
-        'i130' AS id_indicator,
-        valeur_brute,
-        '2023' AS annee
-    FROM df_pe_final
-    """
-    df_pe_final = duckdb.sql(query)
+    df_epci = pd.read_csv(base_dir / "data" / "processed" / "epci_membres.csv", sep=',')
 
-    # Sauvegarde des données traitées
-    output_path = processed_dir / "txcouv_pe_epci_2023.csv"
-    df_pe_final.write_csv(str(output_path))
-    print(f"Données petite enfance sauvegardées dans {output_path}")
-
-    df_epci = create_dataframe_epci(raw_dir)
-
-    #query complete
-    query = """ 
-        SELECT 
-            DISTINCT siren AS id_epci,
-            raison_sociale AS nom_epci,
-            dept
-        FROM df_epci
-        """
-    df_epci = duckdb.sql(query)
 
     #query complete with join
     query = """
         SELECT 
-            s1.dept,
-            CAST(s1.id_epci AS VARCHAR) AS id_epci,
-            s1.nom_epci,
+            s1.dept_epci AS dept_id,
+            CAST(s1.siren AS VARCHAR) AS id_epci,
+            s1.epci_nom AS epci_lib,
             'i130' AS id_indicator,
-            s2.valeur_brute
+            s2.valeur_brute,
+            '2023' AS annee
         FROM df_epci AS s1
         LEFT JOIN df_pe_final AS s2
-            ON CAST(s1.id_epci AS VARCHAR) = CAST(s2.id_epci AS VARCHAR)
-        ORDER BY s1.dept, s1.id_epci
+            ON CAST(s1.siren AS VARCHAR) = CAST(s2.id_epci AS VARCHAR)
+        GROUP BY s1.dept_epci, s1.siren, s1.epci_nom, s2.valeur_brute
+        ORDER BY s1.dept_epci, s1.siren
         """
     
     df_complete = duckdb.sql(query)
 
-    
     output_path_complete = processed_dir / "i130_txcouv_pe.csv"
     df_complete.write_csv(str(output_path_complete))
     print(f"Données petite enfance complètes sauvegardées dans {output_path_complete}")

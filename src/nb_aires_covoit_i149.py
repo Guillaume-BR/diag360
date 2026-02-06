@@ -31,18 +31,8 @@ def main():
     df_nb_lieu_covoit = duckdb.read_csv(raw_dir / filename)
 
     # Téléchargement des données epci pour jointure
-    df_epci = create_dataframe_epci()
+    df_epci = pd.read_csv(base_dir / "data" / "processed" / "epci_membres.csv", sep=',')
 
-    # On sélectionne uniquement les colonnes utiles
-    query = """ 
-    SELECT 
-        DISTINCT siren,
-        raison_sociale AS nom_epci,
-        dept,
-        TRY_CAST(REPLACE(total_pop_tot,' ','') AS DOUBLE) AS total_pop_tot
-    FROM df_epci
-    """
-    df_epci_filtered = duckdb.sql(query)
 
     # Calcul par epci du nombre de lieux de covoiturage pour 10000 habitants
     query = """
@@ -56,52 +46,25 @@ def main():
         )
     
     SELECT 
+        e1.dept_epci AS dept_id,
         e1.siren AS id_epci,
+        e1.epci_nom AS epci_lib,
         'i149' AS id_indicator,
-        ROUND(e2.nb_aires_covoiturage / e1.total_pop_tot * 10000,3) AS valeur_brute,
+        ROUND(e2.nb_aires_covoiturage / e1.total_pop_mun * 10000,3) AS valeur_brute,
         '2025' AS annee
-    FROM df_epci_filtered e1
+    FROM df_epci e1
     LEFT JOIN df_nb_lieu_covoit_filtered e2
     ON e1.siren = e2.siren
+    GROUP BY e1.dept_epci, e1.siren, e1.epci_nom, e2.nb_aires_covoiturage,  e1.total_pop_mun
+    ORDER BY e1.dept_epci, e1.siren
     """
 
     df_nb_lieu_covoit_bdd = duckdb.sql(query)
 
     # Sauvegarde du fichier final
-    output_file = processed_dir / "aires_covoit_per_epci.csv"
+    output_file = processed_dir / "i149_aires_covoit_per_epci.csv"
     df_nb_lieu_covoit_bdd.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
-
-    #Query complete
-    # Calcul par epci du nombre de lieux de covoiturage pour 10000 habitants
-    query = """
-    WITH df_nb_lieu_covoit_filtered AS (
-        SELECT 
-            territoryid AS siren,
-            sum(valeur) AS nb_aires_covoiturage
-        FROM df_nb_lieu_covoit
-        WHERE type_lieu = 'Aire de covoiturage'
-        GROUP BY territoryid
-        )
-    
-    SELECT 
-        e1.dept,
-        e1.siren AS id_epci,
-        e1.nom_epci,
-        'i149' AS id_indicator,
-        ROUND(e2.nb_aires_covoiturage / e1.total_pop_tot * 10000,3) AS valeur_brute
-    FROM df_epci_filtered e1
-    LEFT JOIN df_nb_lieu_covoit_filtered e2
-    ON e1.siren = e2.siren
-    ORDER BY e1.dept, e1.siren
-    """
-
-    df_nb_lieu_covoit_complete = duckdb.sql(query)
-     
-     #Sauvegarde du fichier complet
-    output_file_complete = processed_dir / "i149_aires_covoit.csv"
-    df_nb_lieu_covoit_complete.write_csv(str(output_file_complete))
-    print(f"Fichier complet sauvegardé : {output_file_complete}")
 
 
 if __name__ == "__main__":

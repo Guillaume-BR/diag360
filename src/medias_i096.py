@@ -22,10 +22,12 @@ processed_dir.mkdir(parents=True, exist_ok=True)
 
 def main():
     #dataframe des epci
-    df_epci = create_dataframe_epci(raw_dir)
-
+    #df_epci = create_dataframe_epci()
+    df_epci = pd.read_csv(base_dir / "data" / "processed" / "epci_membres.csv", sep=',')
+    
     # dataframe des communes
-    df_com = create_dataframe_communes(raw_dir)
+    #df_com = create_dataframe_communes()
+    df_com = pd.read_csv(base_dir / "data" / "raw" / "communes_france_2025.csv", sep=',')
 
     # dataframe des médias non indépendants
     url_media_non_independants = "https://raw.githubusercontent.com/mdiplo/Medias_francais/refs/heads/master/medias.tsv"
@@ -100,16 +102,6 @@ def main():
     }
 
     df_medias["Ville"] = df_medias["Ville"].replace(ville_mapping)
-
-    #préparation df_epci
-    query = """
-        SELECT
-            DISTINCT siren AS id_epci,
-            raison_sociale AS nom_epci,
-            dept
-        FROM df_epci
-    """
-    df_epci_clean = duckdb.query(query)
 
     # premiere jointure avec les communes
     query = """
@@ -209,34 +201,23 @@ def main():
 
     query_by_epci = """ 
     SELECT
-        epci_code as id_epci,
+        df_epci.dept_epci AS dept_id,
+        df_epci.siren as id_epci,
+        df_epci.epci_nom AS nom_epci,
         'i096' AS id_indicator,
-        count(nom_media) AS valeur_brute,
+        COUNT(nom_media) AS valeur_brute,
         '2024' AS annee
-    FROM df_final
-    GROUP BY  epci_code
+    FROM df_epci
+    LEFT JOIN df_final
+    ON df_epci.code_insee = df_final.code_insee
+    GROUP BY  dept_id, id_epci, nom_epci
+    ORDER BY dept_id, id_epci
     """
 
     nb_medias_par_epci = duckdb.query(query_by_epci).to_df()
     nb_medias_par_epci.to_csv(
-        str(processed_dir / "nb_medias_par_epci.csv"), index=False
+        str(processed_dir / "i096_medias_epci_complete.csv"), index=False
     )
-
-    query_complete = """ 
-    SELECT
-        df_epci_clean.dept,
-        df_epci_clean.id_epci,
-        df_epci_clean.nom_epci,
-        nb_medias_par_epci.id_indicator,
-        nb_medias_par_epci.valeur_brute
-    FROM df_epci_clean
-    LEFT JOIN nb_medias_par_epci
-        ON df_epci_clean.id_epci = nb_medias_par_epci.id_epci
-    ORDER BY df_epci_clean.dept, df_epci_clean.id_epci
-        """
-    df_complete = duckdb.query(query_complete)
-    df_complete.write_csv(
-        str(processed_dir / "i096_medias_epci_complete.csv"))
 
 if __name__ == "__main__":
     main()

@@ -8,7 +8,7 @@ from io import BytesIO
 
 # Ajouter le dossier parent de src (le projet) au path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils.functions import download_file, download_stock_file, create_dataframe_communes, create_dataframe_epci
+from utils.functions import download_file, download_stock_file, float_to_codepostal
 
 base_dir = Path(__file__).resolve().parent.parent  # racine du projet diag360
 data_dir = base_dir / "data" / "data_asso"
@@ -72,7 +72,8 @@ def asso_sans_alsace() -> pd.DataFrame:
     """
     df_insee_null = duckdb.sql(query_insee_null).df()
 
-    df_com = create_dataframe_communes()
+    df_com = pd.read_csv(base_dir / "data" / "raw" / "communes_france_2025.csv", sep=",")
+    df_com = float_to_codepostal(df_com, "code_postal")
 
     for _, row in df_insee_null.iterrows():
         code_postal = row["adrs_codepostal"]
@@ -215,10 +216,11 @@ def main():
     df_asso_als = asso_alsace_moselle().reset_index(drop=True)
 
     # Création de la table duckdb des communes
-    df_com = create_dataframe_communes()
+    df_com = pd.read_csv(base_dir / "data" / "raw" / "communes_france_2025.csv", sep=",")
+    df_com = float_to_codepostal(df_com, "code_postal")
 
     # Création de la table duckdb des epci
-    df_epci = create_dataframe_epci()
+    df_epci = pd.read_csv(base_dir / "data" / "processed" / "epci_membres.csv", sep=',')    
 
     # jointure avec les communes pour récupérer les codes insee
     query_join = """ 
@@ -253,58 +255,29 @@ def main():
 
     df_asso_complete = duckdb.sql(query_union)
 
-    # Jointure avec les epci pour le calcul de l'indicateur
+    # Calcul de l'indicateur i131 : nombre d'associations pour 1000 habitants par EPCI
     query = """ 
     SELECT 
-        TRY_CAST(siren AS INTEGER) AS siren,
-        raison_sociale,
-        dept,
-        insee,
-        TRY_CAST(REPLACE(total_pop_mun, ' ', '') AS INTEGER) AS total_pop_mun,
-    from df_epci
-    """
-
-    df_epci = duckdb.sql(query)
-
-    # query pour le calcul de l'indicateur i131
-    query = """
-    SELECT 
-        e2.dept as dept_id,
-        CAST(e2.siren AS VARCHAR) as id_epci, 
-        e2.raison_sociale as epci_lib,
-        'i131' AS id_indicateur,
-        ROUND(count(e1.adrs_codeinsee) / e2.total_pop_mun * 1000,2) AS valeur_brute,
-        '2025' AS annee
-    FROM df_epci e2
-    LEFT JOIN df_asso_complete e1
-    ON e1.adrs_codeinsee = e2.insee
-    GROUP BY e2.dept,e2.siren,e2.total_pop_mun, e2.raison_sociale
+        e1.dept_epci AS dept_id,
+        CAST(e1.siren AS VARCHAR) as id_epci,
+        e1.epci_nom AS epci_lib,
+        'i131' AS id_indicator,
+        ROUND(count(e2.adrs_codeinsee) / e1.total_pop_mun * 1000,2) AS valeur_brute,
+        '2025' AS annee,
+    FROM df_epci e1
+    LEFT JOIN df_asso_complete e2
+    ON e2.adrs_codeinsee = e1.code_insee
+    GROUP BY e1.dept_epci,e1.siren, e1.epci_nom, e1.total_pop_mun
     ORDER BY dept_id, id_epci
     """
 
-    df_asso_epci = duckdb.sql(query)
-    
-    # Sauvegarde du fichier final
-    output_file = processed_dir / "i131_asso_per_epci.csv"
-    df_asso_epci.write_csv(str(output_file))
-    print(f"Fichier sauvegardé : {output_file}")
+    df_test = duckdb.sql(query)
+    print(df_test.df().shape)
 
-    # Calcul de l'indicateur pour la BDD interne
-    query_bdd = """
-    SELECT 
-        id_epci, 
-        id_indicateur,
-        valeur_brute,
-        '2025' AS annee
-    FROM df_asso_epci
-    """
-    df_asso_bdd = duckdb.sql(query_bdd)
-
-    # Sauvegarde du fichier bdd
-    output_file = processed_dir / "asso_per_epci.csv"
-    df_asso_bdd.write_csv(str(output_file))
-    print(f"Fichier sauvegardé : {output_file}")
-
+    #sauvegarde du fichier test
+    output_file_test = processed_dir / "i131_asso_per_epci.csv"
+    df_test.write_csv(str(output_file_test))
+    print(f"Fichier sauvegardé : {output_file_test}")
 
 if __name__ == "__main__":
     main()  # asso.py

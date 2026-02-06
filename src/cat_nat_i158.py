@@ -30,39 +30,15 @@ def main():
         with z.open("catnat_gaspar.csv") as f:
             df_cat_nat = pd.read_csv(f, sep=";", low_memory=False)    
 
-    # Création de la table duckdb pour les jointures
-    df_com = create_dataframe_communes()
-
     # Création de la table duckdb des epci
-    df_epci = create_dataframe_epci()
+    df_epci = pd.read_csv(base_dir / "data" / "processed" / "epci_membres.csv", sep=',')
 
-    # Mise en forme des données
-    # mapping = {
-    # "Code": "siren",
-    # "Libellé": "nom_epci",
-    # "Nombre d'Arrêtés de Catastrophes Naturelles publiés au J.O.": "nb_cat_nat"
-    # }
-    # df_cat_nat = df_cat_nat.rename(columns=mapping)
-    # df_cat_nat.loc[df_cat_nat['siren'] == 75056, 'siren'] = 200054781
-    # print("Données cat_nat chargées et renommées.")
-
-    # création de la table du code epci et du nom associé
-    query = """
-    SELECT 
-        DISTINCT TRY_CAST(siren AS INT) AS siren,
-        raison_sociale AS nom_epci,
-        dept
-    FROM df_epci
-    """
-    df_epci_filtered = duckdb.sql(query)
-    print(f"df_epci_filtered.shape: {df_epci_filtered.df().shape}")
-
+    #nombre de cat nat par commune sur 40 ans
     query = """
     SELECT cod_commune AS code_insee, count(*) AS nb_cat_nat
     FROM df_cat_nat
     GROUP BY cod_commune
     """
-
     df_cat_nat_communes = duckdb.sql(query)
     print(f"df_cat_nat_communes.shape: {df_cat_nat_communes.df().shape}")
 
@@ -70,13 +46,12 @@ def main():
     query = """
     WITH df_temp AS (
     SELECT 
-        df_com.epci_code AS siren,
+        df_epci.siren AS siren,
         df_cat_nat_communes.nb_cat_nat,
-        df_com.superficie_km2
-    FROM df_com
+        df_epci.superficie_km2
+    FROM df_epci
     LEFT JOIN df_cat_nat_communes
-    ON df_com.code_insee = df_cat_nat_communes.code_insee
-    WHERE (superficie_km2 IS NOT NULL) AND (epci_code != 'ZZZZZZZZZ')
+    ON df_epci.code_insee = df_cat_nat_communes.code_insee
     )
 
     SELECT 
@@ -94,16 +69,17 @@ def main():
     # Ajout du nom des epci
     query_complete = """
     SELECT 
-        df_epci_filtered.dept as dept_id,
-        CAST(df_epci_filtered.siren AS VARCHAR) as id_epci,
-        df_epci_filtered.nom_epci as epci_lib,
-        'i158' AS id_indicateur,
+        df_epci.dept_epci as dept_id,
+        CAST(df_epci.siren AS VARCHAR) as id_epci,
+        df_epci.epci_nom as epci_lib,
+        'i158' AS id_indicator,
         df_cat_nat_temp.cat_nat_per_km2 as valeur_brute,
         '2025' AS annee
-    FROM df_epci_filtered
+    FROM df_epci
     LEFT JOIN df_cat_nat_temp
-    ON df_cat_nat_temp.siren = df_epci_filtered.siren
-    ORDER BY df_epci_filtered.dept, df_epci_filtered.siren
+    ON df_cat_nat_temp.siren = df_epci.siren
+    GROUP BY df_epci.dept_epci, df_epci.siren, df_epci.epci_nom, df_cat_nat_temp.cat_nat_per_km2
+    ORDER BY df_epci.dept_epci, df_epci.siren
     """
 
     df_cat_nat_final = duckdb.sql(query_complete)
@@ -113,20 +89,6 @@ def main():
     output_file = processed_dir / "i_158_cat_nat_per_epci.csv"
     df_cat_nat_final.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
-
-    # Pour la BDD
-    query_bdd = """
-        SELECT 
-            id_epci,
-            id_indicateur as id_indicator,
-            valeur_brute,
-            '2025' AS annee
-        FROM df_cat_nat_final
-        """
-    df_cat_nat_bdd = duckdb.sql(query_bdd)
-    output_file_bdd = processed_dir / "cat_nat_per_epci.csv"
-    df_cat_nat_bdd.write_csv(str(output_file_bdd))
-    print(f"Fichier BDD sauvegardé : {output_file_bdd}")
 
 
 if __name__ == "__main__":

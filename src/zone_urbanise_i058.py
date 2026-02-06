@@ -29,20 +29,14 @@ def main():
     path_zones_urb = raw_dir / "zones_urbaines.csv"
     df_zones_urb = pd.read_csv(path_zones_urb)
 
-    print(df_zones_urb.head())
-
     # Chargement des données des EPCI
-    df_epci = create_dataframe_epci()
+    df_epci = pd.read_csv(base_dir / "data" / "processed" / "epci_membres.csv", sep=',')
 
     # Chargement des données des aménagements cyclables
     url = (
         "https://www.data.gouv.fr/api/1/datasets/r/f5d6ae97-b62e-46a7-ad5e-736c8084cee8"
     )
-
     df_amenagement_cyclable = duckdb.read_parquet(url)
-
-    # Chargement des données des communes
-    df_com = create_dataframe_communes()
 
     # Traitement des données des zones urbaines
     df_zones_urb.drop("Unnamed: 6", axis=1, inplace=True)
@@ -76,7 +70,6 @@ def main():
         .astype(float)
     )
     print(f"df_zones_urb.shape: {df_zones_urb.shape}")
-    print(df_zones_urb.head())
 
     #traitement des données des aménagements cyclables
     # 1. Charger l'extension sur l'instance par défaut de DuckDB
@@ -129,14 +122,15 @@ def main():
     FROM df_temp_pandas
     GROUP BY code_com_d)
     
-    SELECT  
-        df_com.epci_code,
+    SELECT 
+        df_epci.dept_epci AS dept_id,
+        df_epci.siren as id_epci,
+        df_epci.epci_nom AS epci_lib,
         sum(df_temp.km_amenagements) AS km_amenagements
-    FROM df_com
+    FROM df_epci
     LEFT JOIN df_temp
-    ON df_com.code_insee = df_temp.code_insee 
-    WHERE df_com.epci_code != 'ZZZZZZZZZ'
-    GROUP BY df_com.epci_code
+    ON df_epci.code_insee = df_temp.code_insee 
+    GROUP BY df_epci.siren, df_epci.dept_epci, df_epci.epci_nom
     """
 
     df_amenagements_par_epci = duckdb.sql(query)
@@ -144,45 +138,23 @@ def main():
     # On merge les aménagements cyclables avec les zones urbanisées
     query_bdd = """ 
     SELECT 
-        ape.epci_code AS id_epci,
+        ape.dept_id,
+        ape.id_epci,
+        ape.epci_lib,
         'i058' AS id_indicator,
         ROUND(ape.km_amenagements / zu.superficie_artificialisee,2) AS valeur_brute,
         '2025' AS annee
     FROM df_amenagements_par_epci ape
     LEFT JOIN df_zone_urbanise_merged zu
-    ON ape.epci_code = zu.siren
+    ON ape.id_epci = zu.siren
+    ORDER BY ape.dept_id, ape.id_epci
     """
 
     #sauvegarde du dataframe final
-    df_final = duckdb.sql(query_bdd).df()
-    print(df_final.head())
+    df_final = duckdb.sql(query_bdd)
     path_output = processed_dir / "i058_zone_urbanise.csv"
-    df_final.to_csv(path_output, index=False)
+    df_final.write_csv_csv(str(path_output), index=False)
+    print(f"Dataframe final sauvegardé à: {path_output}")      
 
-    #query_complete
-    query = """ 
-    WITH s1 AS (
-    SELECT 
-        DISTINCT siren, 
-        raison_sociale, 
-        dept
-    FROM df_epci)
-
-    SELECT
-        s1.dept,
-        s1.siren AS id_epci,
-        s1.raison_sociale AS nom_epci,
-        'i058' AS id_indicator,
-        s2.valeur_brute
-    FROM s1
-    LEFT JOIN df_final AS s2
-        ON CAST(s1.siren AS VARCHAR) = CAST(s2.id_epci AS VARCHAR)
-    ORDER BY s1.dept, s1.siren
-    """
-
-    df_complete = duckdb.sql(query)
-    output_path_complete = processed_dir / "i058_zone_urbanise_complete.csv"
-    df_complete.write_csv(str(output_path_complete))
-    print(f"Données zone urbanisée complètes sauvegardées dans {output_path_complete}")          
 if __name__ == "__main__":
     main()

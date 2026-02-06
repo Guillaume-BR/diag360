@@ -3,6 +3,7 @@ import pandas as pd
 import duckdb
 import os
 from pathlib import Path
+import numpy as np
 
 # Ajouter le dossier parent de src (le projet) au path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -20,23 +21,10 @@ processed_dir.mkdir(parents=True, exist_ok=True)
 
 def main():
     # chargement des données des urgences
-    df_dist_urg = duckdb.read_csv(raw_dir / "dist_urgence.csv", skiprows=2)
-
-    # Création du dataframe des communes (cf functions.py)
-    df_com = create_dataframe_communes()
+    df_dist_urg = pd.read_csv(data_dir / "raw" / "dist_urgence.csv",skiprows=2,sep=';')
 
     # Création de la table duckdb des epci
-    df_epci = create_dataframe_epci()
-
-    # création de la table du code epci et du nom associé
-    query = """
-    SELECT 
-        DISTINCT siren as id_epci,
-        raison_sociale AS nom_epci,
-        dept
-    FROM df_epci
-    """
-    df_epci = duckdb.sql(query)
+    df_epci = pd.read_csv(base_dir / "data" / "processed" / "epci_membres.csv", sep=',')
 
     # Changement des noms de colonnes
     mapping_urg = {
@@ -45,24 +33,32 @@ def main():
         "Distance à la structure la plus proche 2024": "dist_urgence_min",
     }
 
-    df_dist_urg = df_dist_urg.df().rename(columns=mapping_urg)
+    df_dist_urg = df_dist_urg.rename(columns=mapping_urg)
 
-    # Jointure des données distance moyenne aux urgences
+    #On traite les données de distance aux urgences
+    df_dist_urg['code_insee'] = df_dist_urg['code_insee'].apply(lambda x: '75056' if x.startswith('75') else x)
+    #on supprime les lignes où dist_urg_min est "'N/A - résultat non disponible'"
+    df_dist_urg.loc[
+        df_dist_urg["dist_urgence_min"].str.contains("N/A", na=False),
+        "dist_urgence_min",
+    ] = np.nan
+    #on groupe par code_insee en fisant la moyenne ds distance
+    df_dist_urg['dist_urgence_min'] = df_dist_urg['dist_urgence_min'].str.replace(',','.').astype(float)
+    df_dist_urg = df_dist_urg.groupby('code_insee',as_index=False).agg({'dist_urgence_min':'mean'})  
+
     query_final =""" 
     SELECT
-        df_epci.dept,
-        df_epci.id_epci,
-        df_epci.nom_epci,
+        df_epci.dept_epci AS dept_id,
+        df_epci.siren AS id_epci,
+        df_epci.epci_nom AS epci_lib,
         'i148' AS id_indicator,
-        ROUND(AVG(TRY_CAST(dist_urgence_min AS DOUBLE)),2) AS valeur_brute
-    FROM df_com
+        ROUND(AVG(TRY_CAST(dist_urgence_min AS DOUBLE)),2) AS valeur_brute,
+        '2024' AS annee
+    FROM df_epci
     LEFT JOIN df_dist_urg
-    ON df_com.code_insee = df_dist_urg.code_insee
-    LEFT JOIN df_epci
-    ON df_com.epci_code = df_epci.id_epci
-    WHERE epci_code != 'ZZZZZZZZZ'
-    GROUP BY id_epci, nom_epci, dept
-    ORDER BY dept, id_epci
+    ON df_epci.code_insee = df_dist_urg.code_insee
+    GROUP BY siren, epci_nom, dept_id
+    ORDER BY dept_id, id_epci
     """
 
     df_dist_urg_moy = duckdb.sql(query_final)
@@ -73,24 +69,6 @@ def main():
     df_dist_urg_moy.write_csv(str(output_file_moy))
     print(f"Fichier sauvegardé : {output_file_moy}")
 
-    # Jointure des deux dataframes et du dataframe des epci
-    query = """ 
-    SELECT
-        d.id_epci as id_epci,
-        'i148' AS id_indicator,
-        e.valeur_brute as valeur_brute,
-        '2024' AS annee
-    FROM df_epci d
-    LEFT JOIN df_dist_urg_moy e
-    ON d.id_epci = e.id_epci
-    """
-
-    df_dist_soin_final = duckdb.sql(query)
-
-    # Sauvegarde du fichier final
-    output_file = processed_dir / "dist_urgence_per_epci.csv"
-    df_dist_soin_final.write_csv(str(output_file))
-    print(f"Fichier sauvegardé : {output_file}")
 
 
 if __name__ == "__main__":

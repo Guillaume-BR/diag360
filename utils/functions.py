@@ -34,20 +34,24 @@ def download_stock_file(url: str, extract_to: str = ".", filename: str = None) -
         Nom du fichier local (avec extension).
     """
 
+    # Création du dossier si nécessaire
     if not os.path.exists(extract_to):
         os.makedirs(extract_to, exist_ok=True)
         print(f"Dossier créé : {extract_to}")
 
-    filename = os.path.join(extract_to, filename)
+    file_path = os.path.join(extract_to, filename)
 
-    if not os.path.exists(filename):
+    if not os.path.exists(file_path):
+        print(f"Téléchargement du fichier : {file_path}")
         response = requests.get(url)
         response.raise_for_status()
-        print(f"Téléchargement du fichier : {filename}")
 
-        with open(filename, "wb") as f:
+        with open(file_path, "wb") as f:
             f.write(response.content)
-        print(f"Fichier téléchargé avec succès : {filename}")
+
+        print(f"Fichier téléchargé avec succès : {file_path}")
+    else:
+        print(f"Fichier déjà présent : {file_path}")
 
 def extract_zip_from_bytes(zip_bytes: bytes, extract_to: str = ".") -> None:
     """
