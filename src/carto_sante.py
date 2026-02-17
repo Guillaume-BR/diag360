@@ -50,7 +50,7 @@ SELECT
     'i064' as id_indicator,
     -- sum(CAST("APL aux médecins généralistes de 65 ans et moins " as float)) AS total_apl_medecins_moins_65_ans_ou_moins,
     -- count(*) as nb_apl_medecins_records,
-    ROUND(avg(CAST("APL aux médecins généralistes de 65 ans et moins " as float)), 2) AS valeur_brute,
+    ROUND(sum(CAST(#3 as float) * CAST(#4 as float))/sum(CAST(#4 as float)),1) AS valeur_brute,
     '2025' AS annee
     FROM df_epci AS c
     LEFT JOIN df_apl_medecins AS d
@@ -69,7 +69,7 @@ SELECT     c.dept_epci as dept_id,
     'i067' as id_indicator,
     -- sum(CAST("APL aux infirmières" as float)) AS total_apl_infirmiers_moins_65_ans_ou_moins,
     -- count(*) as nb_apl_infirmiers_records,
-    ROUND(avg(CAST("APL aux infirmières" as float)), 2) AS valeur_brute,
+    ROUND(sum(CAST(#3 as float) * CAST(#4 as float))/sum(CAST(#4 as float)),1) AS valeur_brute,
         '2025' AS annee
     FROM df_epci AS c
     LEFT JOIN df_apl_infirmiers AS d
@@ -88,7 +88,7 @@ c.dept_epci as dept_id,
     'i069' as id_indicator,
     -- sum(CAST("APL aux chirurgiens-dentistes" as float)) AS total_apl_chirurgiens_dentiste_moins_65_ans_ou_moins,
     -- count(*) as nb_apl_chirurgiens_dentiste_records,
-    ROUND(avg(CAST("APL aux chirurgiens-dentistes" as float)), 2) AS valeur_brute,
+    ROUND(sum(CAST(#3 as float) * CAST(#4 as float))/sum(CAST(#4 as float)),1) AS valeur_brute,
     '2025' AS annee
     FROM df_epci AS c
     LEFT JOIN df_apl_chirurgiens_dentiste AS d
@@ -106,7 +106,7 @@ SELECT c.dept_epci as dept_id,
     'i068' as id_indicator,
     -- sum(CAST("APL aux sages-femmes" as float)) AS total_apl_sages_femmes_moins_65_ans_ou_moins,
     -- count(*) as nb_apl_sages_femmes_records,
-    ROUND(avg(CAST("APL aux sages-femmes" as float)), 2) AS valeur_brute,
+    ROUND(sum(CAST(#3 as float) * CAST(#4 as float))/sum(CAST(#4 as float)),1) as valeur_brute,
     '2025' AS annee
     FROM df_epci AS c
     LEFT JOIN df_apl_sages_femmes AS d

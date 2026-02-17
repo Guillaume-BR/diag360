@@ -83,6 +83,7 @@ def main():
     # set_villes_diff = set_villes_medias - set_villes_result
     # set_villes_diff
 
+    #correction de l'orthographe de certaines villes pour faire correspondre les noms de villes entre df_medias et df_com
     ville_mapping = {
         "Bourg Les Valence": "Bourg-lès-Valence",
         "Charleville-Mézieres": "Charleville-Mézières",
@@ -216,7 +217,7 @@ def main():
 
     nb_medias_par_epci = duckdb.query(query_by_epci).to_df()
     nb_medias_par_epci.to_csv(
-        str(processed_dir / "i096_medias_epci_complete.csv"), index=False
+        str(processed_dir / "i096_medias_epci.csv"), index=False
     )
 
 if __name__ == "__main__":

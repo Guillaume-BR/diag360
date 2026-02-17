@@ -35,16 +35,18 @@ def main():
 
     df_dist_pharma = df_dist_pharma.rename(columns=mapping_pharma)
 
-    # On traite les données de distance aux pharmacies
-    df_dist_pharma["code_insee"] = df_dist_pharma["code_insee"].apply(
-        lambda x: "75056" if x.startswith("75") else x
-    )
+    # On modifie le code_insee de Paris, Marseille et Lyon
+    df_dist_pharma.loc[df_dist_pharma["code_insee"].str.startswith("75"), "code_insee"] = "75056"
+    df_dist_pharma.loc[df_dist_pharma["code_insee"].str.startswith("693"), "code_insee"] = "69123"
+    df_dist_pharma.loc[df_dist_pharma["code_insee"].str.startswith("132"), "code_insee"] = "13055"   
+
+
     # on remplace les lignes où dist_pharma_min est "'N/A - résultat non disponible' par un vrai NA"
     df_dist_pharma.loc[
         df_dist_pharma["dist_pharma_min"].str.contains("N/A", na=False),
         "dist_pharma_min",
     ] = np.nan
-    # on groupe par code_insee en fisant la moyenne ds distance
+    # on groupe par code_insee en faisant la moyenne ds distance
     df_dist_pharma["dist_pharma_min"] = (
         df_dist_pharma["dist_pharma_min"].str.replace(",", ".").astype(float)
     )

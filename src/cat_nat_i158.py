@@ -8,7 +8,7 @@ import zipfile
 
 # Ajouter le dossier parent de src (le projet) au path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils.functions import download_file, create_dataframe_communes, create_dataframe_epci
+from utils.functions import download_file
 
 base_dir = Path(__file__).resolve().parent.parent  # racine du projet diag360
 data_dir = base_dir / "data" / "data_cat_nat"
@@ -33,34 +33,39 @@ def main():
     # Création de la table duckdb des epci
     df_epci = pd.read_csv(base_dir / "data" / "processed" / "epci_membres.csv", sep=',')
 
+    #On modifie les code insee de Paris, Lyon, Marseille pour les faire correspondre à ceux de l'INSEE
+    df_cat_nat.loc[df_cat_nat["cod_commune"].str.startswith("75"), "cod_commune"] = "75056"
+    df_cat_nat.loc[df_cat_nat["cod_commune"].str.startswith("693"), "cod_commune"] = "69123"
+    df_cat_nat.loc[df_cat_nat["cod_commune"].str.startswith("132"), "cod_commune"] = "13055"
+
     #nombre de cat nat par commune sur 40 ans
     query = """
-    SELECT cod_commune AS code_insee, count(*) AS nb_cat_nat
+    SELECT 
+        cod_commune AS code_insee, 
+        count(*) AS nb_cat_nat
     FROM df_cat_nat
     GROUP BY cod_commune
     """
-    df_cat_nat_communes = duckdb.sql(query)
-    print(f"df_cat_nat_communes.shape: {df_cat_nat_communes.df().shape}")
+    df_cat_nat_communes = duckdb.sql(query).df()
+    print(f"df_cat_nat_communes.shape: {df_cat_nat_communes.shape}")
 
     # Surface de chaque epci et nb de cat nat par epci sur 40 ans
     query = """
     WITH df_temp AS (
     SELECT 
         df_epci.siren AS siren,
-        df_cat_nat_communes.nb_cat_nat,
-        df_epci.superficie_km2
+        sum(df_cat_nat_communes.nb_cat_nat) as nb_cat_nat_total,
+        sum(df_epci.superficie_km2) as superficie_km2
     FROM df_epci
     LEFT JOIN df_cat_nat_communes
     ON df_epci.code_insee = df_cat_nat_communes.code_insee
+    GROUP BY df_epci.siren
     )
 
     SELECT 
         siren,
-        SUM(nb_cat_nat) AS nb_cat_nat_total,
-        SUM(superficie_km2) AS superficie_epci_km2,
-        ROUND(nb_cat_nat_total / superficie_epci_km2, 3) AS cat_nat_per_km2
+        ROUND(nb_cat_nat_total / superficie_km2, 3) AS cat_nat_per_km2
     FROM df_temp
-    GROUP BY siren
     """
 
     df_cat_nat_temp = duckdb.sql(query)
@@ -86,8 +91,30 @@ def main():
     print(f"df_cat_nat_final.shape: {df_cat_nat_final.df().shape}")
 
     # Sauvegarde du fichier final
-    output_file = processed_dir / "i_158_cat_nat_per_epci.csv"
+    output_file = processed_dir / "i158_cat_nat_per_epci.csv"
     df_cat_nat_final.write_csv(str(output_file))
+    print(f"Fichier sauvegardé : {output_file}")
+
+    # NB_cat_nat
+    query = """ 
+    SELECT 
+        df_epci.dept_epci as dept_id,
+        df_epci.siren AS siren,
+        df_epci.epci_nom as epci_lib,
+        sum(df_cat_nat_communes.nb_cat_nat) as nb_cat_nat_total
+    FROM df_epci
+    LEFT JOIN df_cat_nat_communes
+    ON df_epci.code_insee = df_cat_nat_communes.code_insee
+    GROUP BY df_epci.siren, df_epci.dept_epci, df_epci.epci_nom
+    ORDER BY df_epci.dept_epci, df_epci.siren
+    """
+
+    df_cat_nat_nb = duckdb.sql(query)
+    print(f"df_cat_nat_nb.shape: {df_cat_nat_nb.df().shape}")
+
+    # Sauvegarde du fichier final
+    output_file = processed_dir / "nb_cat_nat_per_epci.csv"
+    df_cat_nat_nb.write_csv(str(output_file))
     print(f"Fichier sauvegardé : {output_file}")
 
 

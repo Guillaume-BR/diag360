@@ -115,9 +115,9 @@ def asso_sans_alsace() -> pd.DataFrame:
     SELECT 
         id, 
         '75056' AS adrs_codeinsee,
-        '75012' AS adrs_codepostal
+        adrs_codepostal
     FROM df_pb_postal 
-    WHERE adrs_codeinsee = '75112' and adrs_codepostal like '00%'
+    WHERE adrs_codeinsee LIKE '75%'
     ORDER BY adrs_codeinsee
     """
 
@@ -172,9 +172,9 @@ def asso_alsace_moselle() -> pd.DataFrame:
     # On garde les assos inscrites
     query = """ 
     SELECT 
-    NUMERO_AMALIA as id,
-    COMMUNE as commune,
-    CODE_POSTAL as adrs_codepostal
+        NUMERO_AMALIA as id,
+        COMMUNE as commune,
+        CODE_POSTAL as adrs_codepostal
     FROM df_asso
     WHERE ETAT_ASSOCIATION = 'INSCRITE'
     ORDER BY CODE_POSTAL
@@ -205,6 +205,7 @@ def asso_alsace_moselle() -> pd.DataFrame:
     }
 
     df_asso_corrige = df_asso_filtered.replace({"adrs_codepostal": mapping_code_postal})
+    print(f"Taille df_asso_als_moselle: {df_asso_corrige.shape}")
     return df_asso_corrige
 
 
@@ -253,31 +254,65 @@ def main():
     ORDER BY adrs_codeinsee
     """
 
-    df_asso_complete = duckdb.sql(query_union)
+    df_asso_complete = duckdb.sql(query_union).df()
+
+    #On retraite le code insee pour les communes de Paris, Marseille et Lyon
+    df_asso_complete.dropna(subset=['adrs_codeinsee'], inplace=True)  # Supprimer les lignes avec des valeurs nulles dans adrs_codeinsee
+    df_asso_complete['adrs_codeinsee'] = df_asso_complete['adrs_codeinsee'].apply(lambda x: '75056' if x.startswith('75') and isinstance(x, str) else x)
+    df_asso_complete['adrs_codeinsee'] = df_asso_complete['adrs_codeinsee'].apply(lambda x: '13055' if x.startswith('132') and isinstance(x, str) else x)
+    df_asso_complete['adrs_codeinsee'] = df_asso_complete['adrs_codeinsee'].apply(lambda x: '69123' if x.startswith('693') and isinstance(x, str) else x)  
 
     # Calcul de l'indicateur i131 : nombre d'associations pour 1000 habitants par EPCI
     query = """ 
     SELECT 
-        e1.dept_epci AS dept_id,
-        CAST(e1.siren AS VARCHAR) as id_epci,
-        e1.epci_nom AS epci_lib,
+        p.dept_epci AS dept_id,
+        CAST(p.siren AS VARCHAR) AS id_epci,
+        p.epci_nom AS epci_lib,
         'i131' AS id_indicator,
-        ROUND(count(e2.adrs_codeinsee) / e1.total_pop_mun * 1000,2) AS valeur_brute,
-        '2025' AS annee,
-    FROM df_epci e1
-    LEFT JOIN df_asso_complete e2
-    ON e2.adrs_codeinsee = e1.code_insee
-    GROUP BY e1.dept_epci,e1.siren, e1.epci_nom, e1.total_pop_mun
-    ORDER BY dept_id, id_epci
+        ROUND(COUNT(e2.adrs_codeinsee) / p.total_pop_mun * 1000,2) AS valeur_brute,
+        '2025' AS annee
+    FROM df_epci p
+    LEFT JOIN df_epci e1 ON e1.siren = p.siren
+    LEFT JOIN df_asso_complete e2 
+        ON e2.adrs_codeinsee = e1.code_insee
+    GROUP BY p.dept_epci, p.siren, p.epci_nom, p.total_pop_mun
+    ORDER BY dept_id, id_epci;
+
     """
 
-    df_test = duckdb.sql(query)
-    print(df_test.df().shape)
+    df_asso_final = duckdb.sql(query)
+    print(df_asso_final.df().shape)
 
-    #sauvegarde du fichier test
-    output_file_test = processed_dir / "i131_asso_per_epci.csv"
-    df_test.write_csv(str(output_file_test))
-    print(f"Fichier sauvegardé : {output_file_test}")
+    #sauvegarde du fichier final
+    output_file = processed_dir / "i131_asso_per_epci.csv"
+    df_asso_final.write_csv(str(output_file))
+    print(f"Fichier sauvegardé : {output_file}")
+
+    # Calcul de l'indicateur i131 : nombre d'associations par EPCI
+    query = """ 
+    SELECT 
+        p.dept_epci AS dept_id,
+        CAST(p.siren AS VARCHAR) AS id_epci,
+        p.epci_nom AS epci_lib,
+        'i131' AS id_indicator,
+        COUNT(e2.adrs_codeinsee) AS nb_asso,
+        '2025' AS annee
+    FROM df_epci p
+    LEFT JOIN df_epci e1 ON e1.siren = p.siren
+    LEFT JOIN df_asso_complete e2 
+        ON e2.adrs_codeinsee = e1.code_insee
+    GROUP BY p.dept_epci, p.siren, p.epci_nom, p.total_pop_mun
+    ORDER BY dept_id, id_epci;
+
+    """
+
+    df_nb_asso = duckdb.sql(query)
+    print(df_nb_asso.df().shape)
+
+    #sauvegarde du fichier final
+    output_file = processed_dir / "nb_asso_per_epci.csv"
+    df_nb_asso.write_csv(str(output_file))
+    print(f"Fichier sauvegardé : {output_file}")
 
 if __name__ == "__main__":
     main()  # asso.py

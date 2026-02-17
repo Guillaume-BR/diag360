@@ -98,6 +98,12 @@ def main():
     gdf['distance_km'] = gdf.to_crs(epsg=2154).geometry.length / 1000
 
     df_temp_pandas = pd.DataFrame(gdf.drop(columns='geometry'))
+    df_temp_pandas = df_temp_pandas.dropna(subset=['code_com_d'])
+    
+    #n retraite les codes insee de Paris, Marseille et Lyon
+    df_temp_pandas['code_com_d'] = df_temp_pandas['code_com_d'].apply(lambda x: '75056' if x.startswith('75') else x)
+    df_temp_pandas['code_com_d'] = df_temp_pandas['code_com_d'].apply(lambda x: '13055' if x.startswith('132') else x)
+    df_temp_pandas['code_com_d'] = df_temp_pandas['code_com_d'].apply(lambda x: '69123' if x.startswith('693') else x)
 
     
     # Jointure des données des zones urbanisées avec les EPCI
@@ -153,7 +159,7 @@ def main():
     #sauvegarde du dataframe final
     df_final = duckdb.sql(query_bdd)
     path_output = processed_dir / "i058_zone_urbanise.csv"
-    df_final.write_csv_csv(str(path_output), index=False)
+    df_final.write_csv(str(path_output))
     print(f"Dataframe final sauvegardé à: {path_output}")      
 
 if __name__ == "__main__":

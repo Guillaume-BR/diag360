@@ -35,14 +35,18 @@ def main():
 
     df_dist_urg = df_dist_urg.rename(columns=mapping_urg)
 
-    #On traite les données de distance aux urgences
-    df_dist_urg['code_insee'] = df_dist_urg['code_insee'].apply(lambda x: '75056' if x.startswith('75') else x)
+    #On modifie le code_insee de Paris, Marseille et Lyon
+    df_dist_urg.loc[df_dist_urg["code_insee"].str.startswith("75"), "code_insee"] = "75056"
+    df_dist_urg.loc[df_dist_urg["code_insee"].str.startswith("693"), "code_insee"] = "69123"
+    df_dist_urg.loc[df_dist_urg["code_insee"].str.startswith("132"), "code_insee"] = "13055"
+    
     #on supprime les lignes où dist_urg_min est "'N/A - résultat non disponible'"
     df_dist_urg.loc[
         df_dist_urg["dist_urgence_min"].str.contains("N/A", na=False),
         "dist_urgence_min",
     ] = np.nan
-    #on groupe par code_insee en fisant la moyenne ds distance
+    
+    #on groupe par code_insee en faisant la moyenne des distances
     df_dist_urg['dist_urgence_min'] = df_dist_urg['dist_urgence_min'].str.replace(',','.').astype(float)
     df_dist_urg = df_dist_urg.groupby('code_insee',as_index=False).agg({'dist_urgence_min':'mean'})  
 

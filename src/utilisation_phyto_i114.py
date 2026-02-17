@@ -28,7 +28,7 @@ def main():
 
     # Téléchagement de la table de la sau
     url = (
-        "https://www.data.gouv.fr/api/1/datasets/r/022cb00f-38f2-4fe7-8895-e3467d3d9255"
+        "https://www.data.gouv.fr/api/1/datasets/r/b27d31a6-107b-46ee-8427-518799b488f0"
     )
     content = download_file(url)
     df_sau = pd.read_csv(BytesIO(content), sep=",")
@@ -44,13 +44,35 @@ def main():
     print("coucou")
     df_phyto = duckdb.read_parquet(str(raw_dir / "achat_commune_phyto.parquet"))
 
+    #traitement de df_sau : on ajoute des zéros et on corrige les codes insee de Paris, Lyon, Marseille pour les faire correspondre à ceux de l'INSEE
+    df_sau['geocode_commune'] = df_sau['geocode_commune'].apply(lambda x: str(x).zfill(5))
+    df_sau['geocode_commune'] = df_sau['geocode_commune'].apply(lambda x: '75056' if x.startswith('75') and isinstance(x, str) else x)
+    df_sau['geocode_commune'] = df_sau['geocode_commune'].apply(lambda x: '13055' if x.startswith('132') and isinstance(x, str ) else x)
+    df_sau['geocode_commune'] = df_sau['geocode_commune'].apply(lambda x: '69123' if x.startswith('693') and isinstance(x, str) else x)
+                                                                                                                          
+    #Correction de Paris, Lyon, Marseille dans df_phyto
+    df_phyto = duckdb.sql("""
+    SELECT
+        *,
+        CASE
+            WHEN code_insee LIKE '75%'  THEN '75056'
+            WHEN code_insee LIKE '132%' THEN '13055'
+            WHEN code_insee LIKE '693%' THEN '69123'
+            ELSE code_insee
+        END AS code_insee
+    FROM df_phyto
+""")
+
     #Préparation de df_sau : on ne garde que 2020
     query_sau = """ 
     SELECT 
-        geocode_epci, 
-        ROUND(TRY_CAST(valeur AS DOUBLE), 2) AS sau_ha
+        df_epci.siren,
+        ROUND(SUM(TRY_CAST(valeur AS DOUBLE)), 2) AS sau_ha
     FROM df_sau
-    WHERE geocode_epci NOT LIKE 'Z%' AND date_mesure LIKE '2020%'
+    LEFT JOIN df_epci
+    ON df_sau.geocode_commune = df_epci.code_insee
+    WHERE date_mesure LIKE '2020%'
+    GROUP BY df_epci.siren
     """
     df_sau = duckdb.sql(query_sau)
 
@@ -105,7 +127,7 @@ def main():
     LEFT JOIN avg_annual_phyto AS aap
         ON epci.siren = aap.siren
     LEFT JOIN df_sau AS ds
-        ON epci.siren = ds.geocode_epci
+        ON epci.siren = ds.siren
     ORDER BY epci.dept_epci, epci.siren
     """
 

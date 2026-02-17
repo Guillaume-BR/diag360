@@ -19,7 +19,7 @@ processed_dir.mkdir(parents=True, exist_ok=True)
 
 
 
-def fetch_api_payload() -> tuple[pd.DataFrame, Path]:
+def prepare_df_risque() -> tuple[pd.DataFrame, Path]:
     """Charge et nettoie les données de risques majeurs"""
 
     # Lire le CSV
@@ -58,10 +58,27 @@ def fetch_api_payload() -> tuple[pd.DataFrame, Path]:
 
 def main():
     # chargement des données des pharmacies
-    df_risques = fetch_api_payload()
+    df_risques = prepare_df_risque()
+    df_risques = df_risques.dropna(subset=['code_insee'])  # Supprimer les lignes avec des valeurs nulles dans code_insee
+    
+    #on traite les codes insee pour les communes de Paris, Marseille et Lyon
+    df_risques['code_insee'] = (df_risques['code_insee']
+                                .apply(lambda x: '75056' if x.startswith('75') and isinstance(x, str) else x)
+    )
+    df_risques['code_insee'] = (df_risques['code_insee']
+                                .apply(lambda x: '13055' if x.startswith('132') and isinstance(x, str) else x)
+    )
+    df_risques['code_insee']  = (df_risques['code_insee']
+                                 .apply(lambda x: '69123' if x.startswith('693') and isinstance(x, str) else x) 
+    )       
 
     # Chargement de la table epci
     df_epci = pd.read_csv(base_dir / "data" / "processed" / "epci_membres.csv", sep=',')
+
+    #Modifier Paris, Marseille et Lyon pour les faire correspondre à la table epci
+    df_risques.loc[df_risques["code_insee"].str.startswith("75"), "code_insee"] = "75056"
+    df_risques.loc[df_risques["code_insee"].str.startswith("693"), "code_insee"] = "69123"
+    df_risques.loc[df_risques["code_insee"].str.startswith("132"), "code_insee"] = "13055"
    
     #jointure avec les communes pour obtenir les codes epci
     query = """ 
@@ -70,30 +87,30 @@ def main():
         df_risques.*
     FROM df_risques
     LEFT JOIN df_epci
-        ON df_risques.code_insee = df_epci.code_insee"""
+        ON df_risques.code_insee = df_epci.code_insee
+        """
     
     df_risques_epci = duckdb.sql(query)
-    print(df_risques_epci.df().head())
 
     #compter le nombre de risques majeurs par epci
     query = """ 
-SELECT
-    id_epci,
-    SUM(TRY_CAST(inondations AS INTEGER)) AS inondations,
-    SUM(TRY_CAST(mouvements_terrain AS INTEGER)) AS mouvements_terrain,
-    SUM(TRY_CAST(seismes AS INTEGER)) AS seismes,
-    SUM(TRY_CAST(avalanches AS INTEGER)) AS avalanches,
-    SUM(TRY_CAST(feux_foret AS INTEGER)) AS feux_foret,
-    SUM(TRY_CAST(phenomenes_atmo AS INTEGER)) AS phenomenes_atmo,
-    SUM(TRY_CAST(eruptions AS INTEGER)) AS eruptions,
-    SUM(TRY_CAST(nucleaire AS INTEGER)) AS nucleaire,
-    SUM(TRY_CAST(barrage AS INTEGER)) AS barrage,
-    SUM(TRY_CAST(transport_matieres AS INTEGER)) AS transport_matieres,
-    SUM(TRY_CAST(engins_guerre AS INTEGER)) AS engins_guerre,
-    SUM(TRY_CAST(affaissements_miniers AS INTEGER)) AS affaissements_miniers,
-    SUM(TRY_CAST(industriel AS INTEGER)) AS industriel
-FROM df_risques_epci
-GROUP BY id_epci
+    SELECT
+        id_epci,
+        SUM(TRY_CAST(inondations AS INTEGER)) AS inondations,
+        SUM(TRY_CAST(mouvements_terrain AS INTEGER)) AS mouvements_terrain,
+        SUM(TRY_CAST(seismes AS INTEGER)) AS seismes,
+        SUM(TRY_CAST(avalanches AS INTEGER)) AS avalanches,
+        SUM(TRY_CAST(feux_foret AS INTEGER)) AS feux_foret,
+        SUM(TRY_CAST(phenomenes_atmo AS INTEGER)) AS phenomenes_atmo,
+        SUM(TRY_CAST(eruptions AS INTEGER)) AS eruptions,
+        SUM(TRY_CAST(nucleaire AS INTEGER)) AS nucleaire,
+        SUM(TRY_CAST(barrage AS INTEGER)) AS barrage,
+        SUM(TRY_CAST(transport_matieres AS INTEGER)) AS transport_matieres,
+        SUM(TRY_CAST(engins_guerre AS INTEGER)) AS engins_guerre,
+        SUM(TRY_CAST(affaissements_miniers AS INTEGER)) AS affaissements_miniers,
+        SUM(TRY_CAST(industriel AS INTEGER)) AS industriel
+    FROM df_risques_epci
+    GROUP BY id_epci
     """
 
     df_total_risques = duckdb.sql(query)
